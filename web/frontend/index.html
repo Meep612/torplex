@@ -102,8 +102,7 @@ tr:hover td{background:var(--surface2)}
     <button class="btn btn-primary" onclick="openAdd()">+ Add Proxy</button>
     <button class="btn btn-ghost" onclick="renewAll()">↻ Renew All</button>
     <button class="btn btn-danger" onclick="killAll()">✕ Kill All</button>
-    <button class="btn btn-ghost" onclick="loadProxies()">↻ Refresh</button>
-    <span class="refresh-note" id="refresh-note">—</span>
+    <span class="refresh-note" id="refresh-note" onclick="loadProxies()" title="Click to refresh" style="cursor:pointer;margin-left:auto">↻ <span id="refresh-time">—</span></span>
   </div>
 
   <table>
@@ -140,11 +139,13 @@ tr:hover td{background:var(--surface2)}
     </div>
     <div class="fg">
       <label>Quantity</label>
-      <div style="display:flex;align-items:center;gap:.6rem">
-        <button type="button" class="btn btn-ghost" style="padding:.3rem .8rem;font-size:1rem" onclick="changeQty(-1)">−</button>
-        <span id="qty-display" style="min-width:2rem;text-align:center;font-size:1.1rem;font-weight:600">1</span>
-        <button type="button" class="btn btn-ghost" style="padding:.3rem .8rem;font-size:1rem" onclick="changeQty(1)">+</button>
-        <span style="color:var(--muted);font-size:.82rem">proxy(ies) to launch</span>
+      <div style="display:flex;align-items:center;gap:.5rem">
+        <button type="button" class="btn btn-ghost" style="padding:.3rem .85rem;font-size:1.1rem;line-height:1" onclick="changeQty(-1)">−</button>
+        <input type="number" id="qty-display" value="1" min="1" max="50"
+          style="width:5rem;text-align:center;font-size:1rem;font-weight:600;background:#0d1117;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.35rem .5rem"
+          oninput="updateLaunchBtn()">
+        <button type="button" class="btn btn-ghost" style="padding:.3rem .85rem;font-size:1.1rem;line-height:1" onclick="changeQty(1)">+</button>
+        <span style="color:var(--muted);font-size:.82rem">proxy(ies)</span>
       </div>
     </div>
     <div class="modal-footer">
@@ -268,7 +269,7 @@ function renderIpCell(d){
 
 async function loadProxies(){
   const data=await fetch(`${API}/proxies`).then(r=>r.json());
-  document.getElementById('refresh-note').textContent='Last refresh: '+new Date().toLocaleTimeString();
+  document.getElementById('refresh-time').textContent=new Date().toLocaleTimeString();
   const tbody=document.getElementById('proxy-list');
 
   if(!data.length){
@@ -319,10 +320,10 @@ document.querySelectorAll('.overlay').forEach(el=>
 async function doCreate(){
   const country=document.getElementById('add-country').value;
   const strict=document.getElementById('add-strict').checked;
-  const qty=parseInt(document.getElementById('qty-display').textContent);
+  const qty=Math.max(1,Math.min(50,parseInt(document.getElementById('qty-display').value)||1));
   closeModal('modal-add');
   // reset qty for next time
-  document.getElementById('qty-display').textContent='1';
+  document.getElementById('qty-display').value=1;
   document.getElementById('btn-launch').textContent='Launch 1 Proxy';
 
   toast(`🚀 Starting ${qty} proxy${qty>1?'ies':''}…`, 14000);
@@ -331,7 +332,7 @@ async function doCreate(){
   await Promise.all(Array.from({length:qty},()=>
     fetch(`${API}/proxies`,{
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({country,strict}),
+      body:JSON.stringify({country,strict,count:qty}),
     })
   ));
 
@@ -360,11 +361,14 @@ function saveSettings(){
 
 function changeQty(delta){
   const el=document.getElementById('qty-display');
-  const btn=document.getElementById('btn-launch');
-  let v=parseInt(el.textContent)+delta;
-  if(v<1) v=1; if(v>20) v=20;
-  el.textContent=v;
-  btn.textContent=`Launch ${v} Proxy${v>1?'ies':''}`;
+  let v=(parseInt(el.value)||1)+delta;
+  if(v<1) v=1; if(v>50) v=50;
+  el.value=v;
+  updateLaunchBtn();
+}
+function updateLaunchBtn(){
+  const v=parseInt(document.getElementById('qty-display').value)||1;
+  document.getElementById('btn-launch').textContent=`Launch ${v} Proxy${v>1?'ies':''}`;
 }
 
 async function renewAll(){
