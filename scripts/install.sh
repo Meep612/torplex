@@ -97,6 +97,7 @@ server {
 NGINXVHOST
 
 setsebool -P httpd_can_network_connect 1 >> "$LOG_FILE" 2>&1
+setsebool -P haproxy_connect_any 1 >> "$LOG_FILE" 2>&1
 nginx -t >> "$LOG_FILE" 2>&1 || err "nginx config test failed"
 systemctl enable --now nginx >> "$LOG_FILE" 2>&1
 ok "nginx configured and started"
