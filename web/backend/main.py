@@ -2,17 +2,19 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-import subprocess, json, re, socket
+import subprocess, json, re, socket, time, asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 app = FastAPI(title="Torplex API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-CONTROL_PASSWORD = "torplex"
-BASE_SOCKS_PORT  = 10800
-BASE_HTTP_PORT   = 11800
-BASE_CTRL_PORT   = 12800
-MAX_PROXIES      = 50
+CONTROL_PASSWORD  = "torplex"
+BASE_SOCKS_PORT   = 10800
+BASE_HTTP_PORT    = 11800
+BASE_CTRL_PORT    = 12800
+MAX_PROXIES       = 50
+WATCHDOG_INTERVAL = 30   # seconds between watchdog cycles
+IP_TTL            = 120  # seconds before re-checking a known IP
 
 COUNTRIES = {
     "any": "Any",
@@ -25,13 +27,18 @@ COUNTRIES = {
     "RO": "Romania", "RU": "Russia", "UA": "Ukraine",
 }
 
+# In-memory IP cache: name → {ip, country, country_name, city, checked_at, ok}
+_ip_cache: dict = {}
+
 class ProxyCreate(BaseModel):
     country: Optional[str] = "any"
     strict:  Optional[bool] = False
     count:   Optional[int]  = 1
 
-def run(cmd):
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
+# ─── helpers ──────────────────────────────────────────────────────────────────
+
+def run(cmd, timeout=60):
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
     return r.stdout.strip(), r.returncode
 
 def get_index(name):
@@ -39,32 +46,78 @@ def get_index(name):
     return int(m.group(1)) if m else None
 
 def used_indexes():
-    """Return indexes of ALL containers (running + stopped) to avoid port conflicts."""
     out, _ = run("docker ps -a --filter 'name=tor-proxy-' --format '{{.Names}}'")
     return {int(re.search(r'\d+', n).group()) for n in out.splitlines() if n and re.search(r'\d+', n)}
 
 def prune_exited():
-    """Remove stopped/exited tor-proxy containers to free up their index slots."""
     out, _ = run("docker ps -a --filter 'name=tor-proxy-' --filter 'status=exited' --filter 'status=created' --format '{{.Names}}'")
     names = [n for n in out.splitlines() if n]
     if names:
         run("docker rm " + " ".join(names))
-        print(f"[torplex] pruned {len(names)} dead containers: {', '.join(names)}")
+        for n in names:
+            _ip_cache.pop(n, None)
+        print(f"[watchdog] pruned {len(names)} dead containers")
     return len(names)
 
 def reserve_indexes(count):
-    """Prune dead containers, then return `count` free indexes atomically."""
     prune_exited()
     used = used_indexes()
     result, i = [], 1
     while len(result) < count:
         if i not in used:
             result.append(i)
-            used.add(i)  # mark reserved for this batch
+            used.add(i)
         i += 1
         if i > 9999:
             break
     return result
+
+def fetch_ip(socks_port: int) -> dict:
+    try:
+        out, rc = run(
+            f'curl -s --socks5-hostname 127.0.0.1:{socks_port} --max-time 12 https://ipapi.co/json/',
+            timeout=20
+        )
+        if rc == 0 and out:
+            d = json.loads(out)
+            if d.get("ip"):
+                return {"ip": d.get("ip"), "country": d.get("country_code"),
+                        "country_name": d.get("country_name"), "city": d.get("city"), "ok": True}
+    except Exception:
+        pass
+    return {"ip": None, "country": None, "country_name": None, "city": None, "ok": False}
+
+def refresh_ip(name: str, socks_port: int):
+    result = fetch_ip(socks_port)
+    result["checked_at"] = time.time()
+    _ip_cache[name] = result
+    status = f"{result['ip']} ({result['country']})" if result["ok"] else "no route yet"
+    print(f"[watchdog] {name}: {status}")
+
+def get_running_proxies() -> list:
+    out, _ = run("docker ps --filter 'name=tor-proxy-' --format '{{json .}}'")
+    proxies = []
+    for line in out.splitlines():
+        if not line:
+            continue
+        c = json.loads(line)
+        idx = get_index(c["Names"])
+        if idx:
+            proxies.append({"name": c["Names"], "idx": idx,
+                            "socks_port": BASE_SOCKS_PORT + idx})
+    return proxies
+
+def tor_control(ctrl_port, signal):
+    try:
+        with socket.create_connection(("127.0.0.1", ctrl_port), timeout=5) as s:
+            s.sendall(f'AUTHENTICATE "{CONTROL_PASSWORD}"\r\n'.encode())
+            s.recv(1024)
+            s.sendall(f'SIGNAL {signal}\r\n'.encode())
+            resp = s.recv(1024).decode()
+            s.sendall(b'QUIT\r\n')
+            return "250" in resp
+    except Exception:
+        return False
 
 def spawn_one(idx, country, strict):
     name       = f"tor-proxy-{idx}"
@@ -86,35 +139,44 @@ def spawn_one(idx, country, strict):
     return {"name": name, "socks_port": socks_port, "http_port": http_port,
             "ctrl_port": ctrl_port, "country": country, "strict": strict}, None
 
-def tor_control(ctrl_port, signal):
-    try:
-        with socket.create_connection(("127.0.0.1", ctrl_port), timeout=5) as s:
-            s.sendall(f'AUTHENTICATE "{CONTROL_PASSWORD}"\r\n'.encode())
-            s.recv(1024)
-            s.sendall(f'SIGNAL {signal}\r\n'.encode())
-            resp = s.recv(1024).decode()
-            s.sendall(b'QUIT\r\n')
-            return "250" in resp
-    except Exception:
-        return False
+# ─── watchdog ─────────────────────────────────────────────────────────────────
 
-def get_proxy_ip(socks_port):
-    try:
-        out, rc = run(
-            f'curl -s --socks5-hostname 127.0.0.1:{socks_port} '
-            f'--max-time 10 https://ipapi.co/json/'
-        )
-        if rc == 0 and out:
-            d = json.loads(out)
-            return {"ip": d.get("ip"), "country": d.get("country_code"),
-                    "country_name": d.get("country_name"), "city": d.get("city")}
-    except Exception:
-        pass
-    return {"ip": None, "country": None, "country_name": None, "city": None}
+async def watchdog():
+    """Background task: refresh IPs for running proxies every WATCHDOG_INTERVAL seconds."""
+    print(f"[watchdog] started — interval={WATCHDOG_INTERVAL}s, IP TTL={IP_TTL}s")
+    await asyncio.sleep(15)   # initial delay — let containers bootstrap first
+    loop = asyncio.get_event_loop()
+    while True:
+        try:
+            proxies = get_running_proxies()
+            now = time.time()
+            to_refresh = []
+            for p in proxies:
+                cached = _ip_cache.get(p["name"])
+                if not cached:
+                    to_refresh.append(p)
+                elif not cached["ok"] or (now - cached["checked_at"]) > IP_TTL:
+                    to_refresh.append(p)
+
+            if to_refresh:
+                print(f"[watchdog] refreshing {len(to_refresh)}/{len(proxies)} proxies")
+                with ThreadPoolExecutor(max_workers=8) as ex:
+                    for p in to_refresh:
+                        ex.submit(refresh_ip, p["name"], p["socks_port"])
+        except Exception as e:
+            print(f"[watchdog] error: {e}")
+        await asyncio.sleep(WATCHDOG_INTERVAL)
+
+@app.on_event("startup")
+async def startup():
+    asyncio.create_task(watchdog())
+
+# ─── routes ───────────────────────────────────────────────────────────────────
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    cached = sum(1 for v in _ip_cache.values() if v.get("ok"))
+    return {"status": "ok", "ip_cache_size": len(_ip_cache), "ip_resolved": cached}
 
 @app.get("/countries")
 def list_countries():
@@ -122,13 +184,11 @@ def list_countries():
 
 @app.get("/proxies")
 def list_proxies():
-    # Single docker ps call
     out, _ = run("docker ps -a --filter 'name=tor-proxy-' --format '{{json .}}'")
     containers = [json.loads(l) for l in out.splitlines() if l]
     if not containers:
         return []
 
-    # Batch docker inspect — one call for all containers
     names = " ".join(c["Names"] for c in containers)
     inspect_out, _ = run(f"docker inspect {names}")
     try:
@@ -142,22 +202,26 @@ def list_proxies():
         idx  = get_index(name)
         if not idx:
             continue
-        socks_port = BASE_SOCKS_PORT + idx
-        http_port  = BASE_HTTP_PORT  + idx
-        ctrl_port  = BASE_CTRL_PORT  + idx
         country, strict = "any", False
         try:
-            envs = inspected.get(name, {}).get("Config", {}).get("Env", [])
-            for e in envs:
+            for e in inspected.get(name, {}).get("Config", {}).get("Env", []):
                 if e.startswith("EXIT_COUNTRY="): country = e.split("=",1)[1]
                 if e.startswith("STRICT_NODES="):  strict  = e.split("=",1)[1] == "1"
         except Exception:
             pass
+        ip_data = _ip_cache.get(name, {})
         proxies.append({
             "id": c["ID"], "name": name,
             "status": c["Status"], "running": c["State"] == "running",
-            "socks_port": socks_port, "http_port": http_port, "ctrl_port": ctrl_port,
+            "socks_port": BASE_SOCKS_PORT + idx,
+            "http_port":  BASE_HTTP_PORT  + idx,
+            "ctrl_port":  BASE_CTRL_PORT  + idx,
             "country": country, "strict": strict,
+            "exit_ip":          ip_data.get("ip"),
+            "exit_country":     ip_data.get("country"),
+            "exit_country_name":ip_data.get("country_name"),
+            "ip_ok":            ip_data.get("ok", False),
+            "ip_checked_at":    ip_data.get("checked_at"),
         })
     return sorted(proxies, key=lambda p: get_index(p["name"]) or 0)
 
@@ -166,30 +230,22 @@ def create_proxy(body: ProxyCreate):
     count   = max(1, min(body.count or 1, MAX_PROXIES))
     country = body.country or "any"
     strict  = body.strict  or False
-
-    # Reserve all indexes first (no race condition)
     indexes = reserve_indexes(count)
     if not indexes:
         raise HTTPException(status_code=500, detail="Could not reserve proxy slots")
-
-    # Spawn in parallel
     results, errors = [], []
     with ThreadPoolExecutor(max_workers=min(count, 10)) as ex:
         futures = {ex.submit(spawn_one, idx, country, strict): idx for idx in indexes}
         for fut in futures:
             res, err = fut.result()
-            if res:
-                results.append(res)
-            else:
-                errors.append(err)
-
+            if res: results.append(res)
+            else:   errors.append(err)
     if not results:
         raise HTTPException(status_code=500, detail=f"All spawns failed: {errors}")
     return {"created": len(results), "proxies": results, "errors": errors}
 
 @app.post("/proxies/prune")
 def prune_proxies():
-    """Remove all stopped/exited proxy containers."""
     count = prune_exited()
     return {"pruned": count}
 
@@ -197,6 +253,7 @@ def prune_proxies():
 def delete_proxy(name: str):
     if not re.match(r'^tor-proxy-\d+$', name):
         raise HTTPException(status_code=400, detail="Invalid name")
+    _ip_cache.pop(name, None)
     run(f"docker stop {name}"); run(f"docker rm {name}")
     return {"deleted": name}
 
@@ -205,6 +262,7 @@ def renew_circuit(name: str):
     if not re.match(r'^tor-proxy-\d+$', name):
         raise HTTPException(status_code=400, detail="Invalid name")
     idx = get_index(name)
+    _ip_cache.pop(name, None)   # invalidate cache → watchdog will re-fetch
     ok  = tor_control(BASE_CTRL_PORT + idx, "NEWNYM")
     if not ok:
         run(f"docker restart {name}")
@@ -215,7 +273,7 @@ def renew_circuit(name: str):
 def proxy_ip(name: str):
     if not re.match(r'^tor-proxy-\d+$', name):
         raise HTTPException(status_code=400, detail="Invalid name")
-    return get_proxy_ip(BASE_SOCKS_PORT + get_index(name))
+    return _ip_cache.get(name, {"ip": None, "ok": False})
 
 @app.get("/settings")
 def get_settings():
@@ -225,4 +283,5 @@ def get_settings():
         "base_socks_port": BASE_SOCKS_PORT, "base_http_port": BASE_HTTP_PORT,
         "base_ctrl_port": BASE_CTRL_PORT, "newnym_cooldown_s": 10,
         "max_proxies": MAX_PROXIES,
+        "watchdog_interval_s": WATCHDOG_INTERVAL, "ip_ttl_s": IP_TTL,
     }
