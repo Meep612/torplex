@@ -4,73 +4,104 @@
 <meta charset="UTF-8">
 <title>Torplex</title>
 <style>
+:root {
+  --bg:       #111827;
+  --surface:  #1f2937;
+  --surface2: #283347;
+  --border:   #374151;
+  --accent:   #3b82f6;
+  --accent-d: #2563eb;
+  --success:  #10b981;
+  --warning:  #f59e0b;
+  --danger:   #ef4444;
+  --text:     #f3f4f6;
+  --muted:    #9ca3af;
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',sans-serif;background:#0f0f1a;color:#e0e0e0;min-height:100vh}
-header{background:#1a1a2e;padding:1.2rem 2rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2a2a4a}
-header h1{font-size:1.5rem;color:#7c4dff;letter-spacing:.05em}
-header .subtitle{font-size:.8rem;color:#666;margin-left:.8rem}
-nav-right{display:flex;gap:.8rem}
-main{padding:2rem;max-width:1200px;margin:0 auto}
-.toolbar{display:flex;gap:.8rem;margin-bottom:1.5rem;align-items:center;flex-wrap:wrap}
-.btn{padding:.45rem 1.1rem;border:none;border-radius:6px;cursor:pointer;font-size:.88rem;transition:opacity .2s;font-weight:500}
-.btn:hover{opacity:.82}
-.btn-primary{background:#7c4dff;color:#fff}
-.btn-danger{background:#c62828;color:#fff}
-.btn-warn{background:#e65100;color:#fff}
-.btn-neutral{background:#1e2a3a;color:#90caf9;border:1px solid #2a3a5a}
-.btn-success{background:#1b5e20;color:#a5d6a7}
-.badge{padding:.2rem .6rem;border-radius:12px;font-size:.75rem;font-weight:600}
-.badge-balanced{background:#1b5e20;color:#a5d6a7}
-.badge-direct{background:#1a237e;color:#90caf9}
-table{width:100%;border-collapse:collapse;background:#1a1a2e;border-radius:8px;overflow:hidden}
-th{background:#12122a;color:#7c4dff;text-align:left;padding:.75rem 1rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em}
-td{padding:.75rem 1rem;border-bottom:1px solid #1e1e38;font-size:.88rem;vertical-align:middle}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+header{background:var(--surface);padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:baseline;gap:.6rem}
+.logo h1{font-size:1.3rem;font-weight:700;color:var(--accent)}
+.logo span{font-size:.8rem;color:var(--muted)}
+.header-right{display:flex;gap:.7rem;align-items:center}
+main{padding:1.8rem 2rem;max-width:1280px;margin:0 auto}
+.toolbar{display:flex;gap:.7rem;margin-bottom:1.4rem;align-items:center;flex-wrap:wrap}
+.refresh-note{color:var(--muted);font-size:.78rem;margin-left:.2rem}
+
+/* Buttons */
+.btn{padding:.42rem 1rem;border:none;border-radius:6px;cursor:pointer;font-size:.84rem;font-weight:500;transition:filter .15s,opacity .15s;display:inline-flex;align-items:center;gap:.4rem}
+.btn:hover{filter:brightness(1.12)}
+.btn:active{filter:brightness(.92)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-warning{background:var(--warning);color:#111}
+
+/* Badge */
+.badge{padding:.22rem .7rem;border-radius:20px;font-size:.72rem;font-weight:600;letter-spacing:.04em}
+.badge-balanced{background:#064e3b;color:#6ee7b7;border:1px solid #065f46}
+.badge-direct{background:#1e3a5f;color:#93c5fd;border:1px solid #1e40af}
+
+/* Table */
+table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+th{background:#161d2b;color:var(--muted);text-align:left;padding:.65rem 1rem;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+td{padding:.72rem 1rem;border-bottom:1px solid var(--border);vertical-align:middle;line-height:1.4}
 tr:last-child td{border-bottom:none}
-tr:hover td{background:#1e1e35}
-.dot-up{color:#66bb6a;font-size:1.1rem}
-.dot-down{color:#ef5350;font-size:1.1rem}
-.port-badge{background:#0d1117;border:1px solid #2a2a4a;border-radius:4px;padding:.1rem .4rem;font-size:.78rem;font-family:monospace;margin-right:.3rem}
-.actions{display:flex;gap:.4rem;flex-wrap:wrap}
-.empty{text-align:center;padding:3rem;color:#444;font-size:.9rem}
-select{background:#1e2a3a;color:#e0e0e0;border:1px solid #2a3a5a;border-radius:6px;padding:.4rem .7rem;font-size:.88rem}
+tr:hover td{background:var(--surface2)}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:.4rem}
+.dot-up{background:var(--success);box-shadow:0 0 6px var(--success)}
+.dot-down{background:var(--danger)}
+.dot-pending{background:var(--warning);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.mono{font-family:'Menlo','Consolas',monospace;font-size:.82rem;background:#0d1117;padding:.15rem .45rem;border-radius:4px;border:1px solid var(--border);color:#93c5fd}
+.country-pill{display:inline-flex;align-items:center;gap:.35rem;font-size:.84rem}
+.strict-tag{font-size:.68rem;background:#451a03;color:#fcd34d;padding:.1rem .4rem;border-radius:4px;font-weight:600}
+.ip-cell{font-size:.8rem;color:var(--muted);font-family:monospace}
+.actions{display:flex;gap:.4rem}
+.empty{text-align:center;padding:3rem;color:var(--muted)}
+.loading-row td{text-align:center;padding:2rem;color:var(--muted)}
 
 /* Modal */
-.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center}
-.overlay.active{display:flex}
-.modal{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:10px;padding:2rem;width:480px;max-width:95vw}
-.modal h2{color:#7c4dff;margin-bottom:1.5rem;font-size:1.1rem}
-.form-group{margin-bottom:1.2rem}
-.form-group label{display:block;font-size:.82rem;color:#aaa;margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.05em}
-.form-group select,.form-group input{width:100%;background:#0f0f1a;color:#e0e0e0;border:1px solid #2a2a4a;border-radius:6px;padding:.5rem .8rem;font-size:.9rem}
-.form-row{display:flex;gap:1rem}
-.form-row .form-group{flex:1}
-.modal-actions{display:flex;gap:.8rem;justify-content:flex-end;margin-top:1.5rem}
-.toggle{display:flex;align-items:center;gap:.6rem;cursor:pointer}
-.toggle input{width:auto}
-.section-title{color:#555;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;margin:1.5rem 0 .8rem;border-bottom:1px solid #1e1e38;padding-bottom:.4rem}
-.info-row{display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #1a1a2e;font-size:.88rem}
-.info-row span:first-child{color:#888}
-.info-row span:last-child{font-family:monospace;color:#90caf9}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.8rem;width:460px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal h2{font-size:1rem;font-weight:600;margin-bottom:1.4rem;color:var(--text)}
+.fg{margin-bottom:1.1rem}
+.fg label{display:block;font-size:.75rem;color:var(--muted);margin-bottom:.35rem;text-transform:uppercase;letter-spacing:.05em}
+.fg select,.fg input{width:100%;background:#0d1117;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.45rem .75rem;font-size:.88rem;outline:none}
+.fg select:focus,.fg input:focus{border-color:var(--accent)}
+.fg-row{display:flex;gap:.8rem}
+.fg-row .fg{flex:1}
+.toggle-row{display:flex;align-items:center;gap:.6rem;cursor:pointer;font-size:.88rem;color:var(--muted)}
+.modal-footer{display:flex;gap:.7rem;justify-content:flex-end;margin-top:1.6rem;padding-top:1.2rem;border-top:1px solid var(--border)}
+.section-sep{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:1.3rem 0 .7rem;padding-bottom:.5rem;border-bottom:1px solid var(--border)}
+.kv{display:flex;justify-content:space-between;padding:.4rem 0;font-size:.86rem;border-bottom:1px solid #1a2030}
+.kv span:first-child{color:var(--muted)}
+.kv code{font-family:monospace;color:#93c5fd;font-size:.82rem}
+
+/* Toast */
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.7rem 1.2rem;font-size:.85rem;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.show{opacity:1}
 </style>
 </head>
 <body>
 
 <header>
-  <div style="display:flex;align-items:baseline;gap:.5rem">
+  <div class="logo">
     <h1>⚡ Torplex</h1>
-    <span class="subtitle">Multi Tor Proxy Manager</span>
+    <span>Multi Tor Proxy Manager</span>
   </div>
-  <div style="display:flex;gap:.8rem;align-items:center">
+  <div class="header-right">
     <span id="mode-badge" class="badge badge-balanced">Balanced</span>
-    <button class="btn btn-neutral" onclick="openSettings()">⚙ Settings</button>
+    <button class="btn btn-ghost" onclick="openSettings()">⚙ Settings</button>
   </div>
 </header>
 
 <main>
   <div class="toolbar">
-    <button class="btn btn-primary" onclick="openAddProxy()">+ Add Proxy</button>
-    <button class="btn btn-neutral" onclick="loadProxies()">↻ Refresh</button>
-    <span style="color:#555;font-size:.82rem" id="last-refresh"></span>
+    <button class="btn btn-primary" onclick="openAdd()">+ Add Proxy</button>
+    <button class="btn btn-ghost" onclick="loadProxies()">↻ Refresh</button>
+    <span class="refresh-note" id="refresh-note">—</span>
   </div>
 
   <table>
@@ -78,14 +109,15 @@ select{background:#1e2a3a;color:#e0e0e0;border:1px solid #2a3a5a;border-radius:6
       <tr>
         <th>Name</th>
         <th>Status</th>
-        <th>Country</th>
+        <th>Exit Country</th>
+        <th>Exit IP</th>
         <th>SOCKS5</th>
         <th>HTTP</th>
         <th>Actions</th>
       </tr>
     </thead>
     <tbody id="proxy-list">
-      <tr><td colspan="6" class="empty">Loading...</td></tr>
+      <tr class="loading-row"><td colspan="7">Loading…</td></tr>
     </tbody>
   </table>
 </main>
@@ -93,22 +125,20 @@ select{background:#1e2a3a;color:#e0e0e0;border:1px solid #2a3a5a;border-radius:6
 <!-- Add Proxy Modal -->
 <div class="overlay" id="modal-add">
   <div class="modal">
-    <h2>Add Tor Proxy</h2>
-    <div class="form-group">
+    <h2>+ Add Tor Proxy</h2>
+    <div class="fg">
       <label>Exit Country</label>
-      <select id="add-country">
-        <option value="any">🌍 Any (random)</option>
-      </select>
+      <select id="add-country"><option value="any">🌍 Any (random)</option></select>
     </div>
-    <div class="form-group">
-      <label class="toggle">
+    <div class="fg">
+      <label class="toggle-row">
         <input type="checkbox" id="add-strict">
-        <span>Strict mode — force exact country (StrictNodes)</span>
+        Strict mode — force selected country (StrictNodes 1)
       </label>
     </div>
-    <div class="modal-actions">
-      <button class="btn btn-neutral" onclick="closeModal('modal-add')">Cancel</button>
-      <button class="btn btn-primary" onclick="createProxy()">Launch Proxy</button>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add')">Cancel</button>
+      <button class="btn btn-primary" onclick="doCreate()">Launch Proxy</button>
     </div>
   </div>
 </div>
@@ -118,171 +148,199 @@ select{background:#1e2a3a;color:#e0e0e0;border:1px solid #2a3a5a;border-radius:6
   <div class="modal">
     <h2>⚙ Settings</h2>
 
-    <div class="section-title">Load Balancer</div>
-    <div class="form-row">
-      <div class="form-group">
+    <div class="section-sep">Load Balancer</div>
+    <div class="fg-row">
+      <div class="fg">
         <label>Mode</label>
-        <select id="set-mode" onchange="updateModeBadge()">
-          <option value="balanced">Balanced (HAProxy)</option>
+        <select id="s-mode" onchange="updateBadge()">
+          <option value="balanced">Balanced (HAProxy :9050)</option>
           <option value="direct">Direct (per-proxy ports)</option>
         </select>
       </div>
-      <div class="form-group">
-        <label>HAProxy SOCKS5 Port</label>
-        <input type="number" id="set-haproxy-port" value="9050" readonly style="color:#666">
+    </div>
+
+    <div class="section-sep">Tor Control</div>
+    <div class="fg-row">
+      <div class="fg">
+        <label>Control Password</label>
+        <input type="password" id="s-ctrlpass" value="torplex">
+      </div>
+      <div class="fg">
+        <label>NEWNYM Cooldown (s)</label>
+        <input type="number" id="s-cooldown" value="10" readonly style="color:var(--muted)">
       </div>
     </div>
 
-    <div class="section-title">Proxy Defaults</div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Base SOCKS5 Port</label>
-        <input type="number" id="set-socks-port" value="10800" readonly style="color:#666">
-      </div>
-      <div class="form-group">
-        <label>Base HTTP Port</label>
-        <input type="number" id="set-http-port" value="11800" readonly style="color:#666">
-      </div>
+    <div class="section-sep">Port Allocation</div>
+    <div class="fg-row">
+      <div class="fg"><label>SOCKS5 base</label><input id="s-socks" value="10801" readonly style="color:var(--muted)"></div>
+      <div class="fg"><label>HTTP base</label><input id="s-http" value="11801" readonly style="color:var(--muted)"></div>
     </div>
 
-    <div class="section-title">Tor Control</div>
-    <div class="form-group">
-      <label>Control Password</label>
-      <input type="password" id="set-ctrl-pass" value="torplex">
-    </div>
-    <div class="form-group">
-      <label>NEWNYM Cooldown (seconds)</label>
-      <input type="number" id="set-cooldown" value="10" readonly style="color:#666">
-    </div>
+    <div class="section-sep">Instance</div>
+    <div class="kv"><span>Host</span><code id="kv-host">—</code></div>
+    <div class="kv"><span>HAProxy Stats</span><code id="kv-stats">—</code></div>
+    <div class="kv"><span>Backend API</span><code id="kv-api">—</code></div>
 
-    <div class="section-title">Instance Info</div>
-    <div class="info-row"><span>Host</span><span id="info-host">192.168.1.88</span></div>
-    <div class="info-row"><span>HAProxy Stats</span><span id="info-stats">:8404/stats</span></div>
-
-    <div class="modal-actions">
-      <button class="btn btn-neutral" onclick="closeModal('modal-settings')">Close</button>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-settings')">Close</button>
       <button class="btn btn-primary" onclick="saveSettings()">Save</button>
     </div>
   </div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <script>
 const API = '/api';
 let countries = {};
-let settings  = {};
+let ipCache   = {};   // name → {ip, country, country_name}
 let mode = 'balanced';
 
-async function init() {
-    const [c, s] = await Promise.all([
-        fetch(`${API}/countries`).then(r => r.json()),
-        fetch(`${API}/settings`).then(r => r.json()),
-    ]);
-    countries = c;
-    settings  = s;
-    mode = s.mode;
-    updateModeBadge();
-
-    const sel = document.getElementById('add-country');
-    Object.entries(countries).forEach(([code, name]) => {
-        if (code === 'any') return;
-        const opt = document.createElement('option');
-        opt.value = code;
-        opt.textContent = `${flag(code)} ${name}`;
-        sel.appendChild(opt);
-    });
-
-    document.getElementById('set-haproxy-port').value = s.haproxy_port;
-    document.getElementById('set-socks-port').value   = s.base_socks_port;
-    document.getElementById('set-http-port').value    = s.base_http_port;
-    document.getElementById('set-cooldown').value     = s.newnym_cooldown_s;
-    document.getElementById('info-stats').textContent = `${location.hostname}:8404/stats`;
-
-    loadProxies();
+function flag(code){
+  if(!code||code==='any') return '🌍';
+  return code.toUpperCase().replace(/./g,c=>String.fromCodePoint(127397+c.charCodeAt(0)));
 }
 
-function flag(code) {
-    if (!code || code === 'any') return '🌍';
-    return code.toUpperCase().replace(/./g, c =>
-        String.fromCodePoint(127397 + c.charCodeAt(0))
-    );
+function toast(msg, ms=2800){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), ms);
 }
 
-function updateModeBadge() {
-    const sel = document.getElementById('set-mode');
-    if (sel) mode = sel.value;
-    const b = document.getElementById('mode-badge');
-    b.textContent = mode === 'balanced' ? 'Balanced' : 'Direct';
-    b.className = 'badge ' + (mode === 'balanced' ? 'badge-balanced' : 'badge-direct');
+function updateBadge(){
+  const sel=document.getElementById('s-mode');
+  if(sel) mode=sel.value;
+  const b=document.getElementById('mode-badge');
+  b.textContent=mode==='balanced'?'Balanced':'Direct';
+  b.className='badge '+(mode==='balanced'?'badge-balanced':'badge-direct');
 }
 
-async function loadProxies() {
-    const data = await fetch(`${API}/proxies`).then(r => r.json());
-    const tbody = document.getElementById('proxy-list');
-    document.getElementById('last-refresh').textContent =
-        'Last refresh: ' + new Date().toLocaleTimeString();
+async function init(){
+  const [c,s]=await Promise.all([
+    fetch(`${API}/countries`).then(r=>r.json()),
+    fetch(`${API}/settings`).then(r=>r.json()),
+  ]);
+  countries=c; mode=s.mode; updateBadge();
 
-    if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty">No proxies running — click "+ Add Proxy" to start</td></tr>';
-        return;
-    }
-    tbody.innerHTML = data.map(p => {
-        const up = p.running;
-        const ctry = p.country && p.country !== 'any' ? p.country : null;
-        const label = ctry ? `${flag(ctry)} ${countries[ctry] || ctry}` : '🌍 Any';
-        return `<tr>
-            <td><strong>${p.name}</strong></td>
-            <td><span class="${up ? 'dot-up' : 'dot-down'}">●</span> ${up ? 'Running' : 'Stopped'}</td>
-            <td>${label}${p.strict ? ' <span title="StrictNodes" style="color:#fb8c00;font-size:.75rem">STRICT</span>' : ''}</td>
-            <td><span class="port-badge">${p.socks_port}</span></td>
-            <td><span class="port-badge">${p.http_port}</span></td>
-            <td class="actions">
-                <button class="btn btn-warn" onclick="renewCircuit('${p.name}')">↻ Renew</button>
-                <button class="btn btn-danger" onclick="deleteProxy('${p.name}')">✕</button>
-            </td>
-        </tr>`;
-    }).join('');
+  const sel=document.getElementById('add-country');
+  Object.entries(c).filter(([k])=>k!=='any').sort((a,b)=>a[1].localeCompare(b[1])).forEach(([code,name])=>{
+    const o=document.createElement('option');
+    o.value=code; o.textContent=`${flag(code)} ${name}`; sel.appendChild(o);
+  });
+
+  document.getElementById('s-socks').value=s.base_socks_port+1;
+  document.getElementById('s-http').value=s.base_http_port+1;
+  document.getElementById('s-cooldown').value=s.newnym_cooldown_s;
+  const h=location.hostname;
+  document.getElementById('kv-host').textContent=h;
+  document.getElementById('kv-stats').textContent=`${h}:8404/stats`;
+  document.getElementById('kv-api').textContent=`${h}:8000`;
+
+  loadProxies();
 }
 
-function openAddProxy()    { document.getElementById('modal-add').classList.add('active') }
-function openSettings()    { document.getElementById('modal-settings').classList.add('active') }
-function closeModal(id)    { document.getElementById(id).classList.remove('active') }
+async function fetchIp(name, socks_port){
+  try{
+    const d=await fetch(`${API}/proxies/${name}/ip`).then(r=>r.json());
+    ipCache[name]=d;
+    // update just that cell
+    const cell=document.getElementById(`ip-${name}`);
+    if(cell) cell.innerHTML=renderIpCell(d);
+  }catch(e){}
+}
 
-document.querySelectorAll('.overlay').forEach(el =>
-    el.addEventListener('click', e => { if (e.target === el) el.classList.remove('active') })
+function renderIpCell(d){
+  if(!d||!d.ip) return `<span style="color:var(--muted);font-size:.78rem">—</span>`;
+  return `<span class="ip-cell">${d.ip}<br><small>${flag(d.country)} ${d.country_name||d.country||''}</small></span>`;
+}
+
+async function loadProxies(){
+  const data=await fetch(`${API}/proxies`).then(r=>r.json());
+  document.getElementById('refresh-note').textContent='Last refresh: '+new Date().toLocaleTimeString();
+  const tbody=document.getElementById('proxy-list');
+
+  if(!data.length){
+    tbody.innerHTML='<tr><td colspan="7" class="empty">No proxies running — click "+ Add Proxy" to start</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML=data.map(p=>{
+    const up=p.running;
+    const ctry=p.country&&p.country!=='any'?p.country:null;
+    const label=ctry?`${flag(ctry)} ${countries[ctry]||ctry}`:'🌍 Any';
+    const cached=ipCache[p.name];
+    const ipHtml=cached?renderIpCell(cached):`<span style="color:var(--muted);font-size:.78rem">…</span>`;
+    return `<tr>
+      <td><strong>${p.name}</strong></td>
+      <td>
+        <span class="status-dot ${up?'dot-up':'dot-down'}"></span>
+        ${up?'Running':'Stopped'}
+      </td>
+      <td>
+        <span class="country-pill">${label}</span>
+        ${p.strict?'<span class="strict-tag">STRICT</span>':''}
+      </td>
+      <td id="ip-${p.name}">${ipHtml}</td>
+      <td><span class="mono">${p.socks_port}</span></td>
+      <td><span class="mono">${p.http_port}</span></td>
+      <td class="actions">
+        <button class="btn btn-warning" onclick="renew('${p.name}')">↻ Renew</button>
+        <button class="btn btn-danger"  onclick="del('${p.name}')">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Fetch IPs for running proxies not yet cached
+  data.filter(p=>p.running).forEach(p=>{
+    if(!ipCache[p.name]) fetchIp(p.name, p.socks_port);
+  });
+}
+
+function openAdd(){ document.getElementById('modal-add').classList.add('open') }
+function openSettings(){ document.getElementById('modal-settings').classList.add('open') }
+function closeModal(id){ document.getElementById(id).classList.remove('open') }
+
+document.querySelectorAll('.overlay').forEach(el=>
+  el.addEventListener('click',e=>{ if(e.target===el) el.classList.remove('open') })
 );
 
-async function createProxy() {
-    const country = document.getElementById('add-country').value;
-    const strict  = document.getElementById('add-strict').checked;
-    closeModal('modal-add');
-    await fetch(`${API}/proxies`, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ country, strict }),
-    });
-    loadProxies();
+async function doCreate(){
+  const country=document.getElementById('add-country').value;
+  const strict=document.getElementById('add-strict').checked;
+  closeModal('modal-add');
+  toast('🚀 Starting proxy…', 12000);
+
+  await fetch(`${API}/proxies`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({country,strict}),
+  });
+
+  // Tor needs ~8s to bootstrap
+  setTimeout(()=>{ loadProxies(); toast('✓ Proxy ready'); }, 9000);
 }
 
-async function deleteProxy(name) {
-    if (!confirm(`Remove ${name}?`)) return;
-    await fetch(`${API}/proxies/${name}`, { method: 'DELETE' });
-    loadProxies();
+async function del(name){
+  if(!confirm(`Remove ${name}?`)) return;
+  delete ipCache[name];
+  await fetch(`${API}/proxies/${name}`,{method:'DELETE'});
+  loadProxies(); toast(`✓ ${name} removed`);
 }
 
-async function renewCircuit(name) {
-    const r = await fetch(`${API}/proxies/${name}/renew`, { method: 'POST' });
-    const d = await r.json();
-    loadProxies();
+async function renew(name){
+  toast(`↻ Renewing ${name} circuit…`, 5000);
+  delete ipCache[name];
+  const d=await fetch(`${API}/proxies/${name}/renew`,{method:'POST'}).then(r=>r.json());
+  setTimeout(()=>{ loadProxies(); toast(`✓ Circuit renewed (${d.method})`); }, 3000);
 }
 
-function saveSettings() {
-    mode = document.getElementById('set-mode').value;
-    updateModeBadge();
-    closeModal('modal-settings');
+function saveSettings(){
+  mode=document.getElementById('s-mode').value;
+  updateBadge(); closeModal('modal-settings'); toast('✓ Settings saved');
 }
 
 init();
-setInterval(loadProxies, 15000);
+setInterval(loadProxies, 20000);
 </script>
 </body>
 </html>
