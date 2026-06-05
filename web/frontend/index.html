@@ -56,7 +56,9 @@ tr:hover td{background:var(--surface2)}
 .mono{font-family:'Menlo','Consolas',monospace;font-size:.82rem;background:#0d1117;padding:.15rem .45rem;border-radius:4px;border:1px solid var(--border);color:#93c5fd}
 .country-pill{display:inline-flex;align-items:center;gap:.35rem;font-size:.84rem}
 .strict-tag{font-size:.68rem;background:#451a03;color:#fcd34d;padding:.1rem .4rem;border-radius:4px;font-weight:600}
+.mono-sm{font-family:'Menlo','Consolas',monospace;font-size:.82rem;color:#93c5fd}
 .no-data{color:var(--muted);font-size:.8rem}
+.pending-ip{color:var(--warning);font-size:.75rem;animation:pulse 1s infinite}
 .actions{display:flex;gap:.4rem}
 .empty{text-align:center;padding:3rem;color:var(--muted)}
 .loading-row td{text-align:center;padding:2rem;color:var(--muted)}
@@ -114,6 +116,7 @@ input[type=number]{-moz-appearance:textfield}
       <tr>
         <th>Name</th>
         <th>Status</th>
+        <th>Exit IP</th>
         <th>Exit Country</th>
         <th>SOCKS5</th>
         <th>HTTP</th>
@@ -121,7 +124,7 @@ input[type=number]{-moz-appearance:textfield}
       </tr>
     </thead>
     <tbody id="proxy-list">
-      <tr class="loading-row"><td colspan="6">Loading…</td></tr>
+      <tr class="loading-row"><td colspan="7">Loading…</td></tr>
     </tbody>
   </table>
 </main>
@@ -260,23 +263,36 @@ async function loadProxies(){
   const tbody=document.getElementById('proxy-list');
 
   if(!data.length){
-    tbody.innerHTML='<tr><td colspan="6" class="empty">No proxies running — click "+ Add Proxy" to start</td></tr>';
+    tbody.innerHTML='<tr><td colspan="7" class="empty">No proxies running — click "+ Add Proxy" to start</td></tr>';
     return;
   }
 
   tbody.innerHTML=data.map(p=>{
     const up=p.running;
-    const ctry=p.country&&p.country!=='any'?p.country:null;
-    const label=ctry?`${flag(ctry)} ${countries[ctry]||ctry}`:'🌍 Any';
+    // Configured country (for label/strict badge)
+    const cfgCtry=p.country&&p.country!=='any'?p.country:null;
+    const cfgLabel=cfgCtry?`${flag(cfgCtry)} ${countries[cfgCtry]||cfgCtry}`:'🌍 Any';
+    // Real exit IP & country from watchdog
+    const exitIp   = p.exit_ip   || null;
+    const exitCtry = p.exit_country || null;
+    const exitName = p.exit_country_name || exitCtry || '';
+    const ipHtml = exitIp
+      ? `<span class="mono-sm">${exitIp}</span>`
+      : (up ? `<span class="pending-ip">⏳</span>` : `<span class="no-data">—</span>`);
+    const ctryHtml = exitCtry
+      ? `<span class="country-pill">${flag(exitCtry)} ${exitName}</span>`
+      : (up ? `<span class="pending-ip">bootstrapping…</span>` : `<span class="no-data">—</span>`);
     return `<tr>
       <td><strong>${p.name}</strong></td>
       <td>
         <span class="status-dot ${up?'dot-up':'dot-down'}"></span>
         ${up?'Running':'Stopped'}
       </td>
+      <td>${ipHtml}</td>
       <td>
-        <span class="country-pill">${label}</span>
+        ${ctryHtml}
         ${p.strict?'<span class="strict-tag">STRICT</span>':''}
+        ${cfgCtry?`<span style="font-size:.7rem;color:var(--muted);margin-left:.3rem">(${cfgLabel})</span>`:''}
       </td>
       <td><span class="mono">${p.socks_port}</span></td>
       <td><span class="mono">${p.http_port}</span></td>

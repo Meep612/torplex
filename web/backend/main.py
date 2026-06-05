@@ -82,15 +82,27 @@ def reserve_indexes(count):
 
 def fetch_ip(socks_port: int) -> dict:
     try:
-        out, rc = run(
-            f'curl -s --socks5-hostname 127.0.0.1:{socks_port} --max-time 12 https://ipapi.co/json/',
+        # Step 1: get the exit IP via api.ipify.org (same URL as manual test)
+        ip_out, rc = run(
+            f'curl -s --socks5-hostname 127.0.0.1:{socks_port} --max-time 12 https://api.ipify.org',
             timeout=20
         )
-        if rc == 0 and out:
-            d = json.loads(out)
-            if d.get("ip"):
-                return {"ip": d.get("ip"), "country": d.get("country_code"),
-                        "country_name": d.get("country_name"), "city": d.get("city"), "ok": True}
+        if rc != 0 or not ip_out or not ip_out.strip():
+            return {"ip": None, "country": None, "country_name": None, "city": None, "ok": False}
+        ip = ip_out.strip()
+
+        # Step 2: geolocate that IP (direct, no proxy needed — it's public info)
+        geo_out, rc2 = run(f'curl -s --max-time 5 http://ip-api.com/json/{ip}?fields=countryCode,country,city', timeout=10)
+        country, country_name, city = None, None, None
+        if rc2 == 0 and geo_out:
+            try:
+                g = json.loads(geo_out)
+                country      = g.get("countryCode")
+                country_name = g.get("country")
+                city         = g.get("city")
+            except Exception:
+                pass
+        return {"ip": ip, "country": country, "country_name": country_name, "city": city, "ok": True}
     except Exception:
         pass
     return {"ip": None, "country": None, "country_name": None, "city": None, "ok": False}
@@ -207,7 +219,7 @@ def generate_haproxy_cfg(proxy_names: list) -> str:
     for name in sorted(proxy_names):
         idx = get_index(name)
         if idx:
-            servers += f"    server {name} 127.0.0.1:{BASE_SOCKS_PORT + idx} check\n"
+            servers += f"    server {name} 127.0.0.1:{BASE_SOCKS_PORT + idx}\n"
     return f"""global
     log stdout format raw local0
     maxconn 50000
@@ -249,7 +261,13 @@ def reload_haproxy(proxy_names: list) -> bool:
         if rc != 0:
             print("[haproxy] config validation failed")
             return False
-        _, rc = run("systemctl reload haproxy 2>/dev/null || systemctl restart haproxy")
+        # USR2 = graceful reload (works with systemd Type=simple + -db flag)
+        pid_out, _ = run("systemctl show -p MainPID --value torplex-haproxy")
+        pid = pid_out.strip()
+        if pid and pid != "0":
+            _, rc = run(f"kill -USR2 {pid}")
+        else:
+            _, rc = run("systemctl restart torplex-haproxy")
         if rc == 0:
             _last_proxy_set = current_set
             print(f"[haproxy] reloaded — {len(proxy_names)} backends: {', '.join(sorted(proxy_names))}")
