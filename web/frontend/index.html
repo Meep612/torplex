@@ -1,90 +1,265 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Torplex</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', sans-serif; background: #0f0f1a; color: #e0e0e0; }
-        header { background: #1a1a2e; padding: 1.5rem 2rem; display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid #2a2a4a; }
-        header h1 { font-size: 1.6rem; color: #7c4dff; }
-        header span { font-size: 0.85rem; color: #888; }
-        main { padding: 2rem; max-width: 1100px; margin: 0 auto; }
-        .toolbar { display: flex; gap: 1rem; margin-bottom: 1.5rem; align-items: center; }
-        .btn { padding: 0.5rem 1.2rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; transition: opacity 0.2s; }
-        .btn:hover { opacity: 0.85; }
-        .btn-primary { background: #7c4dff; color: #fff; }
-        .btn-danger { background: #e53935; color: #fff; }
-        .btn-warn { background: #fb8c00; color: #fff; }
-        .mode-badge { padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
-        .mode-balanced { background: #1b5e20; color: #a5d6a7; }
-        .mode-direct { background: #1a237e; color: #90caf9; }
-        table { width: 100%; border-collapse: collapse; background: #1a1a2e; border-radius: 8px; overflow: hidden; }
-        th { background: #12122a; color: #7c4dff; text-align: left; padding: 0.8rem 1rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
-        td { padding: 0.8rem 1rem; border-bottom: 1px solid #2a2a4a; font-size: 0.9rem; }
-        tr:last-child td { border-bottom: none; }
-        .status-up { color: #66bb6a; font-weight: 600; }
-        .status-down { color: #ef5350; font-weight: 600; }
-        .actions { display: flex; gap: 0.5rem; }
-        .empty { text-align: center; padding: 3rem; color: #555; }
-    </style>
+<meta charset="UTF-8">
+<title>Torplex</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0f0f1a;color:#e0e0e0;min-height:100vh}
+header{background:#1a1a2e;padding:1.2rem 2rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2a2a4a}
+header h1{font-size:1.5rem;color:#7c4dff;letter-spacing:.05em}
+header .subtitle{font-size:.8rem;color:#666;margin-left:.8rem}
+nav-right{display:flex;gap:.8rem}
+main{padding:2rem;max-width:1200px;margin:0 auto}
+.toolbar{display:flex;gap:.8rem;margin-bottom:1.5rem;align-items:center;flex-wrap:wrap}
+.btn{padding:.45rem 1.1rem;border:none;border-radius:6px;cursor:pointer;font-size:.88rem;transition:opacity .2s;font-weight:500}
+.btn:hover{opacity:.82}
+.btn-primary{background:#7c4dff;color:#fff}
+.btn-danger{background:#c62828;color:#fff}
+.btn-warn{background:#e65100;color:#fff}
+.btn-neutral{background:#1e2a3a;color:#90caf9;border:1px solid #2a3a5a}
+.btn-success{background:#1b5e20;color:#a5d6a7}
+.badge{padding:.2rem .6rem;border-radius:12px;font-size:.75rem;font-weight:600}
+.badge-balanced{background:#1b5e20;color:#a5d6a7}
+.badge-direct{background:#1a237e;color:#90caf9}
+table{width:100%;border-collapse:collapse;background:#1a1a2e;border-radius:8px;overflow:hidden}
+th{background:#12122a;color:#7c4dff;text-align:left;padding:.75rem 1rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em}
+td{padding:.75rem 1rem;border-bottom:1px solid #1e1e38;font-size:.88rem;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#1e1e35}
+.dot-up{color:#66bb6a;font-size:1.1rem}
+.dot-down{color:#ef5350;font-size:1.1rem}
+.port-badge{background:#0d1117;border:1px solid #2a2a4a;border-radius:4px;padding:.1rem .4rem;font-size:.78rem;font-family:monospace;margin-right:.3rem}
+.actions{display:flex;gap:.4rem;flex-wrap:wrap}
+.empty{text-align:center;padding:3rem;color:#444;font-size:.9rem}
+select{background:#1e2a3a;color:#e0e0e0;border:1px solid #2a3a5a;border-radius:6px;padding:.4rem .7rem;font-size:.88rem}
+
+/* Modal */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center}
+.overlay.active{display:flex}
+.modal{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:10px;padding:2rem;width:480px;max-width:95vw}
+.modal h2{color:#7c4dff;margin-bottom:1.5rem;font-size:1.1rem}
+.form-group{margin-bottom:1.2rem}
+.form-group label{display:block;font-size:.82rem;color:#aaa;margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.05em}
+.form-group select,.form-group input{width:100%;background:#0f0f1a;color:#e0e0e0;border:1px solid #2a2a4a;border-radius:6px;padding:.5rem .8rem;font-size:.9rem}
+.form-row{display:flex;gap:1rem}
+.form-row .form-group{flex:1}
+.modal-actions{display:flex;gap:.8rem;justify-content:flex-end;margin-top:1.5rem}
+.toggle{display:flex;align-items:center;gap:.6rem;cursor:pointer}
+.toggle input{width:auto}
+.section-title{color:#555;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;margin:1.5rem 0 .8rem;border-bottom:1px solid #1e1e38;padding-bottom:.4rem}
+.info-row{display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #1a1a2e;font-size:.88rem}
+.info-row span:first-child{color:#888}
+.info-row span:last-child{font-family:monospace;color:#90caf9}
+</style>
 </head>
 <body>
+
 <header>
+  <div style="display:flex;align-items:baseline;gap:.5rem">
     <h1>⚡ Torplex</h1>
-    <span>Multi Tor Proxy Manager</span>
+    <span class="subtitle">Multi Tor Proxy Manager</span>
+  </div>
+  <div style="display:flex;gap:.8rem;align-items:center">
+    <span id="mode-badge" class="badge badge-balanced">Balanced</span>
+    <button class="btn btn-neutral" onclick="openSettings()">⚙ Settings</button>
+  </div>
 </header>
+
 <main>
-    <div class="toolbar">
-        <button class="btn btn-primary" onclick="createProxy()">+ Add Proxy</button>
-        <button class="btn" style="background:#263238;color:#fff" onclick="toggleMode()">
-            Mode: <span id="mode-label">Balanced</span>
-        </button>
-        <button class="btn" style="background:#263238;color:#fff" onclick="loadProxies()">↻ Refresh</button>
-    </div>
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Status</th>
-                <th>SOCKS5 Port</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody id="proxy-list">
-            <tr><td colspan="4" class="empty">Loading...</td></tr>
-        </tbody>
-    </table>
+  <div class="toolbar">
+    <button class="btn btn-primary" onclick="openAddProxy()">+ Add Proxy</button>
+    <button class="btn btn-neutral" onclick="loadProxies()">↻ Refresh</button>
+    <span style="color:#555;font-size:.82rem" id="last-refresh"></span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Status</th>
+        <th>Country</th>
+        <th>SOCKS5</th>
+        <th>HTTP</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="proxy-list">
+      <tr><td colspan="6" class="empty">Loading...</td></tr>
+    </tbody>
+  </table>
 </main>
+
+<!-- Add Proxy Modal -->
+<div class="overlay" id="modal-add">
+  <div class="modal">
+    <h2>Add Tor Proxy</h2>
+    <div class="form-group">
+      <label>Exit Country</label>
+      <select id="add-country">
+        <option value="any">🌍 Any (random)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="toggle">
+        <input type="checkbox" id="add-strict">
+        <span>Strict mode — force exact country (StrictNodes)</span>
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-neutral" onclick="closeModal('modal-add')">Cancel</button>
+      <button class="btn btn-primary" onclick="createProxy()">Launch Proxy</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="overlay" id="modal-settings">
+  <div class="modal">
+    <h2>⚙ Settings</h2>
+
+    <div class="section-title">Load Balancer</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Mode</label>
+        <select id="set-mode" onchange="updateModeBadge()">
+          <option value="balanced">Balanced (HAProxy)</option>
+          <option value="direct">Direct (per-proxy ports)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>HAProxy SOCKS5 Port</label>
+        <input type="number" id="set-haproxy-port" value="9050" readonly style="color:#666">
+      </div>
+    </div>
+
+    <div class="section-title">Proxy Defaults</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Base SOCKS5 Port</label>
+        <input type="number" id="set-socks-port" value="10800" readonly style="color:#666">
+      </div>
+      <div class="form-group">
+        <label>Base HTTP Port</label>
+        <input type="number" id="set-http-port" value="11800" readonly style="color:#666">
+      </div>
+    </div>
+
+    <div class="section-title">Tor Control</div>
+    <div class="form-group">
+      <label>Control Password</label>
+      <input type="password" id="set-ctrl-pass" value="torplex">
+    </div>
+    <div class="form-group">
+      <label>NEWNYM Cooldown (seconds)</label>
+      <input type="number" id="set-cooldown" value="10" readonly style="color:#666">
+    </div>
+
+    <div class="section-title">Instance Info</div>
+    <div class="info-row"><span>Host</span><span id="info-host">192.168.1.88</span></div>
+    <div class="info-row"><span>HAProxy Stats</span><span id="info-stats">:8404/stats</span></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-neutral" onclick="closeModal('modal-settings')">Close</button>
+      <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = '/api';
+let countries = {};
+let settings  = {};
 let mode = 'balanced';
 
+async function init() {
+    const [c, s] = await Promise.all([
+        fetch(`${API}/countries`).then(r => r.json()),
+        fetch(`${API}/settings`).then(r => r.json()),
+    ]);
+    countries = c;
+    settings  = s;
+    mode = s.mode;
+    updateModeBadge();
+
+    const sel = document.getElementById('add-country');
+    Object.entries(countries).forEach(([code, name]) => {
+        if (code === 'any') return;
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = `${flag(code)} ${name}`;
+        sel.appendChild(opt);
+    });
+
+    document.getElementById('set-haproxy-port').value = s.haproxy_port;
+    document.getElementById('set-socks-port').value   = s.base_socks_port;
+    document.getElementById('set-http-port').value    = s.base_http_port;
+    document.getElementById('set-cooldown').value     = s.newnym_cooldown_s;
+    document.getElementById('info-stats').textContent = `${location.hostname}:8404/stats`;
+
+    loadProxies();
+}
+
+function flag(code) {
+    if (!code || code === 'any') return '🌍';
+    return code.toUpperCase().replace(/./g, c =>
+        String.fromCodePoint(127397 + c.charCodeAt(0))
+    );
+}
+
+function updateModeBadge() {
+    const sel = document.getElementById('set-mode');
+    if (sel) mode = sel.value;
+    const b = document.getElementById('mode-badge');
+    b.textContent = mode === 'balanced' ? 'Balanced' : 'Direct';
+    b.className = 'badge ' + (mode === 'balanced' ? 'badge-balanced' : 'badge-direct');
+}
+
 async function loadProxies() {
-    const res = await fetch(`${API}/proxies`);
-    const data = await res.json();
+    const data = await fetch(`${API}/proxies`).then(r => r.json());
     const tbody = document.getElementById('proxy-list');
+    document.getElementById('last-refresh').textContent =
+        'Last refresh: ' + new Date().toLocaleTimeString();
+
     if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="empty">No proxies running. Click "+ Add Proxy" to start.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No proxies running — click "+ Add Proxy" to start</td></tr>';
         return;
     }
     tbody.innerHTML = data.map(p => {
-        const up = p.status.startsWith('Up');
-        const port = p.ports.match(/(\d+)->9050/)?.[1] || '—';
+        const up = p.running;
+        const ctry = p.country && p.country !== 'any' ? p.country : null;
+        const label = ctry ? `${flag(ctry)} ${countries[ctry] || ctry}` : '🌍 Any';
         return `<tr>
-            <td>${p.name}</td>
-            <td class="${up ? 'status-up' : 'status-down'}">${up ? '● Running' : '● Stopped'}</td>
-            <td>${port}</td>
+            <td><strong>${p.name}</strong></td>
+            <td><span class="${up ? 'dot-up' : 'dot-down'}">●</span> ${up ? 'Running' : 'Stopped'}</td>
+            <td>${label}${p.strict ? ' <span title="StrictNodes" style="color:#fb8c00;font-size:.75rem">STRICT</span>' : ''}</td>
+            <td><span class="port-badge">${p.socks_port}</span></td>
+            <td><span class="port-badge">${p.http_port}</span></td>
             <td class="actions">
                 <button class="btn btn-warn" onclick="renewCircuit('${p.name}')">↻ Renew</button>
-                <button class="btn btn-danger" onclick="deleteProxy('${p.name}')">✕ Remove</button>
+                <button class="btn btn-danger" onclick="deleteProxy('${p.name}')">✕</button>
             </td>
         </tr>`;
     }).join('');
 }
 
+function openAddProxy()    { document.getElementById('modal-add').classList.add('active') }
+function openSettings()    { document.getElementById('modal-settings').classList.add('active') }
+function closeModal(id)    { document.getElementById(id).classList.remove('active') }
+
+document.querySelectorAll('.overlay').forEach(el =>
+    el.addEventListener('click', e => { if (e.target === el) el.classList.remove('active') })
+);
+
 async function createProxy() {
-    await fetch(`${API}/proxies`, { method: 'POST' });
+    const country = document.getElementById('add-country').value;
+    const strict  = document.getElementById('add-strict').checked;
+    closeModal('modal-add');
+    await fetch(`${API}/proxies`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ country, strict }),
+    });
     loadProxies();
 }
 
@@ -95,17 +270,19 @@ async function deleteProxy(name) {
 }
 
 async function renewCircuit(name) {
-    await fetch(`${API}/proxies/${name}/renew`, { method: 'POST' });
+    const r = await fetch(`${API}/proxies/${name}/renew`, { method: 'POST' });
+    const d = await r.json();
     loadProxies();
 }
 
-function toggleMode() {
-    mode = mode === 'balanced' ? 'direct' : 'balanced';
-    document.getElementById('mode-label').textContent = mode === 'balanced' ? 'Balanced' : 'Direct';
+function saveSettings() {
+    mode = document.getElementById('set-mode').value;
+    updateModeBadge();
+    closeModal('modal-settings');
 }
 
-loadProxies();
-setInterval(loadProxies, 10000);
+init();
+setInterval(loadProxies, 15000);
 </script>
 </body>
 </html>
