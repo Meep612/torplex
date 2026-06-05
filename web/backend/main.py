@@ -39,17 +39,28 @@ def get_index(name):
     return int(m.group(1)) if m else None
 
 def used_indexes():
+    """Return indexes of ALL containers (running + stopped) to avoid port conflicts."""
     out, _ = run("docker ps -a --filter 'name=tor-proxy-' --format '{{.Names}}'")
     return {int(re.search(r'\d+', n).group()) for n in out.splitlines() if n and re.search(r'\d+', n)}
 
+def prune_exited():
+    """Remove stopped/exited tor-proxy containers to free up their index slots."""
+    out, _ = run("docker ps -a --filter 'name=tor-proxy-' --filter 'status=exited' --filter 'status=created' --format '{{.Names}}'")
+    names = [n for n in out.splitlines() if n]
+    if names:
+        run("docker rm " + " ".join(names))
+        print(f"[torplex] pruned {len(names)} dead containers: {', '.join(names)}")
+    return len(names)
+
 def reserve_indexes(count):
-    """Return `count` free indexes atomically."""
+    """Prune dead containers, then return `count` free indexes atomically."""
+    prune_exited()
     used = used_indexes()
     result, i = [], 1
     while len(result) < count:
         if i not in used:
             result.append(i)
-            used.add(i)  # mark reserved
+            used.add(i)  # mark reserved for this batch
         i += 1
         if i > 9999:
             break
@@ -175,6 +186,12 @@ def create_proxy(body: ProxyCreate):
     if not results:
         raise HTTPException(status_code=500, detail=f"All spawns failed: {errors}")
     return {"created": len(results), "proxies": results, "errors": errors}
+
+@app.post("/proxies/prune")
+def prune_proxies():
+    """Remove all stopped/exited proxy containers."""
+    count = prune_exited()
+    return {"pruned": count}
 
 @app.delete("/proxies/{name}")
 def delete_proxy(name: str):

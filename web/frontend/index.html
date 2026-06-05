@@ -387,12 +387,19 @@ async function renewAll(){
 
 async function killAll(){
   const data=await fetch(`${API}/proxies`).then(r=>r.json());
-  if(!data.length){ toast('No proxies to remove'); return; }
+  if(!data.length){ await pruneDeadContainers(); toast('✓ No running proxies, dead containers pruned'); return; }
   if(!confirm(`Remove all ${data.length} proxy(ies)?`)) return;
   toast(`Removing ${data.length} proxies…`, 8000);
   data.forEach(p=>{ delete ipCache[p.name]; });
   await Promise.all(data.map(p=>fetch(`${API}/proxies/${p.name}`,{method:'DELETE'})));
-  loadProxies(); toast('✓ All proxies removed');
+  await pruneDeadContainers();
+  loadProxies(); toast('✓ All proxies removed and cleaned');
+}
+
+async function pruneDeadContainers(){
+  const r=await fetch(`${API}/proxies/prune`,{method:'POST'}).then(r=>r.json());
+  if(r.pruned>0) toast(`🧹 ${r.pruned} dead container(s) pruned`);
+  return r.pruned;
 }
 
 init();
