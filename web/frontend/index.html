@@ -100,6 +100,8 @@ tr:hover td{background:var(--surface2)}
 <main>
   <div class="toolbar">
     <button class="btn btn-primary" onclick="openAdd()">+ Add Proxy</button>
+    <button class="btn btn-ghost" onclick="renewAll()">↻ Renew All</button>
+    <button class="btn btn-danger" onclick="killAll()">✕ Kill All</button>
     <button class="btn btn-ghost" onclick="loadProxies()">↻ Refresh</button>
     <span class="refresh-note" id="refresh-note">—</span>
   </div>
@@ -136,9 +138,18 @@ tr:hover td{background:var(--surface2)}
         Strict mode — force selected country (StrictNodes 1)
       </label>
     </div>
+    <div class="fg">
+      <label>Quantity</label>
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <button type="button" class="btn btn-ghost" style="padding:.3rem .8rem;font-size:1rem" onclick="changeQty(-1)">−</button>
+        <span id="qty-display" style="min-width:2rem;text-align:center;font-size:1.1rem;font-weight:600">1</span>
+        <button type="button" class="btn btn-ghost" style="padding:.3rem .8rem;font-size:1rem" onclick="changeQty(1)">+</button>
+        <span style="color:var(--muted);font-size:.82rem">proxy(ies) to launch</span>
+      </div>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-add')">Cancel</button>
-      <button class="btn btn-primary" onclick="doCreate()">Launch Proxy</button>
+      <button class="btn btn-primary" onclick="doCreate()" id="btn-launch">Launch 1 Proxy</button>
     </div>
   </div>
 </div>
@@ -308,16 +319,24 @@ document.querySelectorAll('.overlay').forEach(el=>
 async function doCreate(){
   const country=document.getElementById('add-country').value;
   const strict=document.getElementById('add-strict').checked;
+  const qty=parseInt(document.getElementById('qty-display').textContent);
   closeModal('modal-add');
-  toast('🚀 Starting proxy…', 12000);
+  // reset qty for next time
+  document.getElementById('qty-display').textContent='1';
+  document.getElementById('btn-launch').textContent='Launch 1 Proxy';
 
-  await fetch(`${API}/proxies`,{
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({country,strict}),
-  });
+  toast(`🚀 Starting ${qty} proxy${qty>1?'ies':''}…`, 14000);
+
+  // launch all in parallel
+  await Promise.all(Array.from({length:qty},()=>
+    fetch(`${API}/proxies`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({country,strict}),
+    })
+  ));
 
   // Tor needs ~8s to bootstrap
-  setTimeout(()=>{ loadProxies(); toast('✓ Proxy ready'); }, 9000);
+  setTimeout(()=>{ loadProxies(); toast(`✓ ${qty} proxy${qty>1?'ies':''} ready`); }, 9000);
 }
 
 async function del(name){
@@ -337,6 +356,35 @@ async function renew(name){
 function saveSettings(){
   mode=document.getElementById('s-mode').value;
   updateBadge(); closeModal('modal-settings'); toast('✓ Settings saved');
+}
+
+function changeQty(delta){
+  const el=document.getElementById('qty-display');
+  const btn=document.getElementById('btn-launch');
+  let v=parseInt(el.textContent)+delta;
+  if(v<1) v=1; if(v>20) v=20;
+  el.textContent=v;
+  btn.textContent=`Launch ${v} Proxy${v>1?'ies':''}`;
+}
+
+async function renewAll(){
+  const data=await fetch(`${API}/proxies`).then(r=>r.json());
+  const running=data.filter(p=>p.running);
+  if(!running.length){ toast('No running proxies'); return; }
+  toast(`↻ Renewing ${running.length} circuits…`, 8000);
+  running.forEach(p=>{ delete ipCache[p.name]; });
+  await Promise.all(running.map(p=>fetch(`${API}/proxies/${p.name}/renew`,{method:'POST'})));
+  setTimeout(()=>{ loadProxies(); toast(`✓ All circuits renewed`); }, 3000);
+}
+
+async function killAll(){
+  const data=await fetch(`${API}/proxies`).then(r=>r.json());
+  if(!data.length){ toast('No proxies to remove'); return; }
+  if(!confirm(`Remove all ${data.length} proxy(ies)?`)) return;
+  toast(`Removing ${data.length} proxies…`, 8000);
+  data.forEach(p=>{ delete ipCache[p.name]; });
+  await Promise.all(data.map(p=>fetch(`${API}/proxies/${p.name}`,{method:'DELETE'})));
+  loadProxies(); toast('✓ All proxies removed');
 }
 
 init();
