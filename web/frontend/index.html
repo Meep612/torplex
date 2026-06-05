@@ -78,6 +78,10 @@ tr:hover td{background:var(--surface2)}
 .kv{display:flex;justify-content:space-between;padding:.4rem 0;font-size:.86rem;border-bottom:1px solid #1a2030}
 .kv span:first-child{color:var(--muted)}
 .kv code{font-family:monospace;color:#93c5fd;font-size:.82rem}
+/* Hide native number input spinners */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
 
 /* Toast */
 .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.7rem 1.2rem;font-size:.85rem;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none}

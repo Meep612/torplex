@@ -2,7 +2,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-import subprocess, json, re, socket, asyncio
+import subprocess, json, re, socket
+from concurrent.futures import ThreadPoolExecutor
 
 app = FastAPI(title="Torplex API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -11,8 +12,7 @@ CONTROL_PASSWORD = "torplex"
 BASE_SOCKS_PORT  = 10800
 BASE_HTTP_PORT   = 11800
 BASE_CTRL_PORT   = 12800
-
-_create_lock = asyncio.Lock()   # prevents index race condition on concurrent creates
+MAX_PROXIES      = 50
 
 COUNTRIES = {
     "any": "Any",
@@ -31,22 +31,31 @@ class ProxyCreate(BaseModel):
     count:   Optional[int]  = 1
 
 def run(cmd):
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
     return r.stdout.strip(), r.returncode
 
 def get_index(name):
     m = re.match(r'^tor-proxy-(\d+)$', name)
     return int(m.group(1)) if m else None
 
-def next_index():
+def used_indexes():
     out, _ = run("docker ps -a --filter 'name=tor-proxy-' --format '{{.Names}}'")
-    used = {int(re.search(r'\d+', n).group()) for n in out.splitlines() if n and re.search(r'\d+', n)}
-    i = 1
-    while i in used:
-        i += 1
-    return i
+    return {int(re.search(r'\d+', n).group()) for n in out.splitlines() if n and re.search(r'\d+', n)}
 
-def _spawn_one(idx, country, strict):
+def reserve_indexes(count):
+    """Return `count` free indexes atomically."""
+    used = used_indexes()
+    result, i = [], 1
+    while len(result) < count:
+        if i not in used:
+            result.append(i)
+            used.add(i)  # mark reserved
+        i += 1
+        if i > 9999:
+            break
+    return result
+
+def spawn_one(idx, country, strict):
     name       = f"tor-proxy-{idx}"
     socks_port = BASE_SOCKS_PORT + idx
     http_port  = BASE_HTTP_PORT  + idx
@@ -62,7 +71,7 @@ def _spawn_one(idx, country, strict):
     )
     out, rc = run(cmd)
     if rc != 0:
-        return None, out
+        return None, f"{name}: {out}"
     return {"name": name, "socks_port": socks_port, "http_port": http_port,
             "ctrl_port": ctrl_port, "country": country, "strict": strict}, None
 
@@ -102,21 +111,33 @@ def list_countries():
 
 @app.get("/proxies")
 def list_proxies():
+    # Single docker ps call
     out, _ = run("docker ps -a --filter 'name=tor-proxy-' --format '{{json .}}'")
+    containers = [json.loads(l) for l in out.splitlines() if l]
+    if not containers:
+        return []
+
+    # Batch docker inspect — one call for all containers
+    names = " ".join(c["Names"] for c in containers)
+    inspect_out, _ = run(f"docker inspect {names}")
+    try:
+        inspected = {d["Name"].lstrip("/"): d for d in json.loads(inspect_out)}
+    except Exception:
+        inspected = {}
+
     proxies = []
-    for line in out.splitlines():
-        if not line:
-            continue
-        c = json.loads(line)
+    for c in containers:
         name = c["Names"]
         idx  = get_index(name)
-        socks_port = BASE_SOCKS_PORT + idx if idx else 0
-        http_port  = BASE_HTTP_PORT  + idx if idx else 0
-        ctrl_port  = BASE_CTRL_PORT  + idx if idx else 0
-        env_out, _ = run(f"docker inspect {name} --format '{{{{json .Config.Env}}}}'")
+        if not idx:
+            continue
+        socks_port = BASE_SOCKS_PORT + idx
+        http_port  = BASE_HTTP_PORT  + idx
+        ctrl_port  = BASE_CTRL_PORT  + idx
         country, strict = "any", False
         try:
-            for e in json.loads(env_out):
+            envs = inspected.get(name, {}).get("Config", {}).get("Env", [])
+            for e in envs:
                 if e.startswith("EXIT_COUNTRY="): country = e.split("=",1)[1]
                 if e.startswith("STRICT_NODES="):  strict  = e.split("=",1)[1] == "1"
         except Exception:
@@ -130,17 +151,27 @@ def list_proxies():
     return sorted(proxies, key=lambda p: get_index(p["name"]) or 0)
 
 @app.post("/proxies")
-async def create_proxy(body: ProxyCreate):
-    count = max(1, min(body.count or 1, 50))
+def create_proxy(body: ProxyCreate):
+    count   = max(1, min(body.count or 1, MAX_PROXIES))
+    country = body.country or "any"
+    strict  = body.strict  or False
+
+    # Reserve all indexes first (no race condition)
+    indexes = reserve_indexes(count)
+    if not indexes:
+        raise HTTPException(status_code=500, detail="Could not reserve proxy slots")
+
+    # Spawn in parallel
     results, errors = [], []
-    async with _create_lock:
-        for _ in range(count):
-            idx = next_index()
-            res, err = _spawn_one(idx, body.country or "any", body.strict or False)
+    with ThreadPoolExecutor(max_workers=min(count, 10)) as ex:
+        futures = {ex.submit(spawn_one, idx, country, strict): idx for idx in indexes}
+        for fut in futures:
+            res, err = fut.result()
             if res:
                 results.append(res)
             else:
                 errors.append(err)
+
     if not results:
         raise HTTPException(status_code=500, detail=f"All spawns failed: {errors}")
     return {"created": len(results), "proxies": results, "errors": errors}
@@ -148,14 +179,14 @@ async def create_proxy(body: ProxyCreate):
 @app.delete("/proxies/{name}")
 def delete_proxy(name: str):
     if not re.match(r'^tor-proxy-\d+$', name):
-        raise HTTPException(status_code=400, detail="Invalid proxy name")
+        raise HTTPException(status_code=400, detail="Invalid name")
     run(f"docker stop {name}"); run(f"docker rm {name}")
     return {"deleted": name}
 
 @app.post("/proxies/{name}/renew")
 def renew_circuit(name: str):
     if not re.match(r'^tor-proxy-\d+$', name):
-        raise HTTPException(status_code=400, detail="Invalid proxy name")
+        raise HTTPException(status_code=400, detail="Invalid name")
     idx = get_index(name)
     ok  = tor_control(BASE_CTRL_PORT + idx, "NEWNYM")
     if not ok:
@@ -166,7 +197,7 @@ def renew_circuit(name: str):
 @app.get("/proxies/{name}/ip")
 def proxy_ip(name: str):
     if not re.match(r'^tor-proxy-\d+$', name):
-        raise HTTPException(status_code=400, detail="Invalid proxy name")
+        raise HTTPException(status_code=400, detail="Invalid name")
     return get_proxy_ip(BASE_SOCKS_PORT + get_index(name))
 
 @app.get("/settings")
@@ -174,8 +205,7 @@ def get_settings():
     return {
         "haproxy_port": 9050, "mode": "balanced",
         "control_password": CONTROL_PASSWORD,
-        "base_socks_port": BASE_SOCKS_PORT,
-        "base_http_port":  BASE_HTTP_PORT,
-        "base_ctrl_port":  BASE_CTRL_PORT,
-        "newnym_cooldown_s": 10,
+        "base_socks_port": BASE_SOCKS_PORT, "base_http_port": BASE_HTTP_PORT,
+        "base_ctrl_port": BASE_CTRL_PORT, "newnym_cooldown_s": 10,
+        "max_proxies": MAX_PROXIES,
     }
