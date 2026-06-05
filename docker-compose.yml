@@ -1,0 +1,34 @@
+version: "3.9"
+
+networks:
+  torplex-net:
+    name: torplex-net
+
+services:
+  haproxy:
+    image: haproxy:2.9-alpine
+    container_name: torplex-haproxy
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "9050:9050"   # SOCKS5 load-balanced entry point
+      - "8404:8404"   # HAProxy stats
+    networks:
+      - torplex-net
+    restart: unless-stopped
+
+  backend:
+    image: python:3.11-slim
+    container_name: torplex-backend
+    working_dir: /app
+    volumes:
+      - ./web/backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      sh -c "pip install -q -r requirements.txt &&
+             uvicorn main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+    networks:
+      - torplex-net
+    restart: unless-stopped
