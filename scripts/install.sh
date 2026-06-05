@@ -100,6 +100,12 @@ server {
 NGINXVHOST
 
 setsebool -P httpd_can_network_connect 1 >> "$LOG_FILE" 2>&1
+log "Configuring firewall..."
+firewall-cmd --add-service=http --permanent >> "$LOG_FILE" 2>&1
+firewall-cmd --add-port=8000/tcp --permanent >> "$LOG_FILE" 2>&1
+firewall-cmd --add-port=8404/tcp --permanent >> "$LOG_FILE" 2>&1
+firewall-cmd --reload >> "$LOG_FILE" 2>&1
+ok "Firewall rules applied (http, 8000, 8404)" >> "$LOG_FILE" 2>&1
 nginx -t >> "$LOG_FILE" 2>&1 || err "nginx config test failed"
 systemctl enable --now nginx >> "$LOG_FILE" 2>&1
 ok "nginx configured and started"
