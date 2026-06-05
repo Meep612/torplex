@@ -56,11 +56,7 @@ tr:hover td{background:var(--surface2)}
 .mono{font-family:'Menlo','Consolas',monospace;font-size:.82rem;background:#0d1117;padding:.15rem .45rem;border-radius:4px;border:1px solid var(--border);color:#93c5fd}
 .country-pill{display:inline-flex;align-items:center;gap:.35rem;font-size:.84rem}
 .strict-tag{font-size:.68rem;background:#451a03;color:#fcd34d;padding:.1rem .4rem;border-radius:4px;font-weight:600}
-.ip-cell{font-size:.8rem;color:var(--muted);font-family:monospace}
-.ip-cell-wrap{font-size:.8rem}
-.mono-sm{font-family:'Menlo','Consolas',monospace;font-size:.8rem;color:#93c5fd}
 .no-data{color:var(--muted);font-size:.8rem}
-.pending-ip{color:var(--warning);font-size:.75rem}
 .actions{display:flex;gap:.4rem}
 .empty{text-align:center;padding:3rem;color:var(--muted)}
 .loading-row td{text-align:center;padding:2rem;color:var(--muted)}
@@ -118,7 +114,6 @@ input[type=number]{-moz-appearance:textfield}
       <tr>
         <th>Name</th>
         <th>Status</th>
-        <th>Exit IP</th>
         <th>Exit Country</th>
         <th>SOCKS5</th>
         <th>HTTP</th>
@@ -126,7 +121,7 @@ input[type=number]{-moz-appearance:textfield}
       </tr>
     </thead>
     <tbody id="proxy-list">
-      <tr class="loading-row"><td colspan="7">Loading…</td></tr>
+      <tr class="loading-row"><td colspan="6">Loading…</td></tr>
     </tbody>
   </table>
 </main>
@@ -214,7 +209,6 @@ input[type=number]{-moz-appearance:textfield}
 <script>
 const API = '/api';
 let countries = {};
-let ipCache   = {};   // name → {ip, country, country_name}
 let mode = 'balanced';
 
 function flag(code){
@@ -260,28 +254,13 @@ async function init(){
   loadProxies();
 }
 
-async function fetchIp(name, socks_port){
-  try{
-    const d=await fetch(`${API}/proxies/${name}/ip`).then(r=>r.json());
-    ipCache[name]=d;
-    // update just that cell
-    const cell=document.getElementById(`ip-${name}`);
-    if(cell) cell.innerHTML=renderIpCell(d);
-  }catch(e){}
-}
-
-function renderIpCell(d){
-  if(!d||!d.ip) return `<span style="color:var(--muted);font-size:.78rem">—</span>`;
-  return `<span class="ip-cell">${d.ip}<br><small>${flag(d.country)} ${d.country_name||d.country||''}</small></span>`;
-}
-
 async function loadProxies(){
   const data=await fetch(`${API}/proxies`).then(r=>r.json());
   document.getElementById('refresh-time').textContent=new Date().toLocaleTimeString();
   const tbody=document.getElementById('proxy-list');
 
   if(!data.length){
-    tbody.innerHTML='<tr><td colspan="7" class="empty">No proxies running — click "+ Add Proxy" to start</td></tr>';
+    tbody.innerHTML='<tr><td colspan="6" class="empty">No proxies running — click "+ Add Proxy" to start</td></tr>';
     return;
   }
 
@@ -299,8 +278,6 @@ async function loadProxies(){
         <span class="country-pill">${label}</span>
         ${p.strict?'<span class="strict-tag">STRICT</span>':''}
       </td>
-      <td class="ip-cell-wrap">${p.exit_ip ? `<span class="mono-sm">${p.exit_ip}</span>` : '<span class="no-data">—</span>'}</td>
-      <td>${p.exit_ip ? `<span class="country-pill">${flag(p.exit_country)} ${p.exit_country_name||p.exit_country||'?'}</span>` : (p.running ? '<span class="pending-ip">⏳ bootstrapping</span>' : '<span class="no-data">—</span>')}</td>
       <td><span class="mono">${p.socks_port}</span></td>
       <td><span class="mono">${p.http_port}</span></td>
       <td class="actions">
@@ -310,7 +287,6 @@ async function loadProxies(){
     </tr>`;
   }).join('');
 
-  // IPs provided by backend watchdog — no frontend fetching needed
 }
 
 function openAdd(){ document.getElementById('modal-add').classList.add('open') }
@@ -346,14 +322,14 @@ async function doCreate(){
 
 async function del(name){
   if(!confirm(`Remove ${name}?`)) return;
-  delete ipCache[name];
+
   await fetch(`${API}/proxies/${name}`,{method:'DELETE'});
   loadProxies(); toast(`✓ ${name} removed`);
 }
 
 async function renew(name){
   toast(`↻ Renewing ${name} circuit…`, 5000);
-  delete ipCache[name];
+
   const d=await fetch(`${API}/proxies/${name}/renew`,{method:'POST'}).then(r=>r.json());
   setTimeout(()=>{ loadProxies(); toast(`✓ Circuit renewed (${d.method})`); }, 3000);
 }
@@ -380,7 +356,7 @@ async function renewAll(){
   const running=data.filter(p=>p.running);
   if(!running.length){ toast('No running proxies'); return; }
   toast(`↻ Renewing ${running.length} circuits…`, 8000);
-  running.forEach(p=>{ delete ipCache[p.name]; });
+
   await Promise.all(running.map(p=>fetch(`${API}/proxies/${p.name}/renew`,{method:'POST'})));
   setTimeout(()=>{ loadProxies(); toast(`✓ All circuits renewed`); }, 3000);
 }
@@ -390,7 +366,7 @@ async function killAll(){
   if(!data.length){ await pruneDeadContainers(); toast('✓ No running proxies, dead containers pruned'); return; }
   if(!confirm(`Remove all ${data.length} proxy(ies)?`)) return;
   toast(`Removing ${data.length} proxies…`, 8000);
-  data.forEach(p=>{ delete ipCache[p.name]; });
+
   await Promise.all(data.map(p=>fetch(`${API}/proxies/${p.name}`,{method:'DELETE'})));
   await pruneDeadContainers();
   loadProxies(); toast('✓ All proxies removed and cleaned');
