@@ -221,6 +221,13 @@ const API = '/api';
 let countries = {};
 let mode = 'balanced';
 
+// Set proxy address immediately — no need to wait for init()
+(function(){
+  const h = location.hostname;
+  document.getElementById('info-socks').textContent = h + ':9050';
+  document.getElementById('info-http').textContent  = h + ':8118';
+})();
+
 function flag(code){
   if(!code||code==='any') return '🌍';
   return code.toUpperCase().replace(/./g,c=>String.fromCodePoint(127397+c.charCodeAt(0)));
@@ -260,10 +267,6 @@ async function init(){
   document.getElementById('kv-host').textContent=h;
   document.getElementById('kv-stats').textContent=`${h}:8404/stats`;
   document.getElementById('kv-api').textContent=`${h}:8000`;
-
-  const h = location.hostname;
-  document.getElementById('info-socks').textContent = `${h}:9050`;
-  document.getElementById('info-http').textContent  = `${h}:8118`;
 
   loadProxies();
 }
