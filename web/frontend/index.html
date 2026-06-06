@@ -98,6 +98,13 @@ input[type=number]{-moz-appearance:textfield}
     <span>Multi Tor Proxy Manager</span>
   </div>
   <div class="header-right">
+    <div id="proxy-info" style="font-size:.78rem;color:var(--muted);text-align:right;line-height:1.6;border:1px solid var(--border);border-radius:6px;padding:.3rem .75rem;background:#0d1117">
+      <span style="color:var(--text);font-weight:600">SOCKS5</span>
+      <code id="info-socks" style="font-family:monospace;color:#93c5fd;margin-left:.4rem">—:9050</code>
+      <span style="margin:0 .5rem;color:var(--border)">|</span>
+      <span style="color:var(--text);font-weight:600">HTTP</span>
+      <code id="info-http" style="font-family:monospace;color:#93c5fd;margin-left:.4rem">—:8118</code>
+    </div>
     <span id="mode-badge" class="badge badge-balanced">Balanced</span>
     <button class="btn btn-ghost" onclick="openSettings()">⚙ Settings</button>
   </div>
@@ -253,6 +260,10 @@ async function init(){
   document.getElementById('kv-host').textContent=h;
   document.getElementById('kv-stats').textContent=`${h}:8404/stats`;
   document.getElementById('kv-api').textContent=`${h}:8000`;
+
+  const h = location.hostname;
+  document.getElementById('info-socks').textContent = `${h}:9050`;
+  document.getElementById('info-http').textContent  = `${h}:8118`;
 
   loadProxies();
 }
