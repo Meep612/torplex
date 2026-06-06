@@ -296,8 +296,9 @@ async def watchdog():
             # Refresh docker state in thread (non-blocking)
             proxies = await loop.run_in_executor(executor, _refresh_proxy_state)
 
-            # HAProxy sync (fast file write + kill -USR2, ok in thread)
-            await loop.run_in_executor(executor, reload_haproxy, [p["name"] for p in proxies])
+            # HAProxy: only include proxies confirmed working by watchdog
+            ready = [p["name"] for p in proxies if p.get("running") and _ip_cache.get(p["name"], {}).get("ok")]
+            await loop.run_in_executor(executor, reload_haproxy, ready)
 
             # IP refresh for stale/missing entries
             now = time.time()
