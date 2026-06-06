@@ -227,18 +227,17 @@ def generate_haproxy_cfg(proxies: list) -> str:
     """proxies: list of proxy dicts with name + optional latency_ms."""
     servers = ""
     if proxies:
-        # Weighted round-robin: weight inversely proportional to latency
-        # Proxies without latency get weight 1 (least preferred)
-        latencies = [p.get("latency_ms") or 0 for p in proxies]
-        max_lat   = max(latencies) if any(latencies) else 1
+        # Weighted round-robin: fastest proxy = weight 10, others scaled down
+        # weight = min_lat / lat * 10  →  slowest proxy gets proportionally less traffic
+        valid_lat = [p.get("latency_ms") for p in proxies if p.get("latency_ms")]
+        min_lat   = min(valid_lat) if valid_lat else 1000
 
         for p in sorted(proxies, key=lambda x: x.get("latency_ms") or 99999):
             idx = get_index(p["name"])
             if not idx:
                 continue
-            lat = p.get("latency_ms") or max_lat
-            # Scale weight 1–10 inversely proportional to latency
-            weight = max(1, min(10, round((max_lat / lat) * 10)))
+            lat = p.get("latency_ms") or 9999
+            weight = max(1, min(10, round((min_lat / lat) * 10)))
             servers += f"    server {p['name']} 127.0.0.1:{BASE_SOCKS_PORT + idx} weight {weight}\n"
 
     return f"""global
