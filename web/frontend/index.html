@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Torplex</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 :root {
   --bg:       #111827;
@@ -137,6 +138,15 @@ input[type=number]{-moz-appearance:textfield}
     </tbody>
   </table>
 </main>
+
+<!-- History Chart -->
+<div style="margin-top:1.8rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.2rem 1.5rem">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+    <span style="font-size:.75rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600">Connections / min — last hour</span>
+    <span id="chart-total" style="font-size:.78rem;color:var(--muted)"></span>
+  </div>
+  <canvas id="history-chart" height="80"></canvas>
+</div>
 
 <!-- Add Proxy Modal -->
 <div class="overlay" id="modal-add">
@@ -426,8 +436,71 @@ async function pruneDeadContainers(){
   return r.pruned;
 }
 
+// ─── History chart ────────────────────────────────────────────────────────────
+let histChart = null;
+
+function initChart(){
+  const ctx = document.getElementById('history-chart').getContext('2d');
+  histChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Req/min',
+        data: [],
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.08)',
+        borderWidth: 2,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.parsed.y.toFixed(1)} req/min`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: '#1f2937' },
+          ticks: { color: '#9ca3af', maxTicksLimit: 12, maxRotation: 0 }
+        },
+        y: {
+          min: 0,
+          grid: { color: '#1f2937' },
+          ticks: { color: '#9ca3af', precision: 1 }
+        }
+      }
+    }
+  });
+}
+
+async function loadHistory(){
+  try {
+    const data = await fetch(`${API}/stats/history`).then(r => r.json());
+    if(!histChart) return;
+    histChart.data.labels   = data.map(p => new Date(p.ts*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+    histChart.data.datasets[0].data = data.map(p => p.req_per_min);
+    histChart.update('none');
+    // Update total counter
+    const last = data[data.length-1];
+    if(last) document.getElementById('chart-total').textContent = `Total: ${last.total_req.toLocaleString()} req`;
+  } catch(e){}
+}
+
 init();
+initChart();
+loadHistory();
 setInterval(loadProxies, 20000);
+setInterval(loadHistory, 30000);
 </script>
 </body>
 </html>

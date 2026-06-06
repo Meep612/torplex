@@ -21,6 +21,8 @@ IP_TTL            = 30    # seconds before re-checking — same as watchdog inte
 _last_proxy_set: set = set()
 _haproxy_stats: dict = {}   # name → {stot, req_per_min, last_updated}
 _stats_prev: dict    = {}   # name → {stot, ts} for delta calculation
+_history: list       = []   # ring buffer: [{ts, total_req, req_per_min}], max 120 entries (1h @ 30s)
+HISTORY_MAX          = 120
 
 COUNTRIES = {
     "any": "Any",
@@ -352,10 +354,20 @@ async def watchdog():
 
             # Read HAProxy stats for req/min counters
             stats = await loop.run_in_executor(executor, _read_haproxy_stats)
+            total_rpm = 0.0
+            total_req = 0
             for name, s in stats.items():
                 if name in _proxy_state:
                     _proxy_state[name]["req_per_min"] = s.get("req_per_min")
                     _proxy_state[name]["req_total"]   = s.get("stot")
+                rpm = s.get("req_per_min")
+                if rpm is not None:
+                    total_rpm += rpm
+                total_req += s.get("stot", 0)
+            # Append to history ring buffer
+            _history.append({"ts": time.time(), "total_req": total_req, "req_per_min": round(total_rpm, 1)})
+            if len(_history) > HISTORY_MAX:
+                _history.pop(0)
 
         except Exception as e:
             print(f"[watchdog] error: {e}")
@@ -404,6 +416,12 @@ def _read_haproxy_stats() -> dict:
     except Exception as e:
         print(f"[stats] error: {e}")
         return {}
+
+@app.get("/stats/history")
+def stats_history():
+    """Return last 1h of connection history (one point per watchdog cycle = 30s)."""
+    return [{"ts": p["ts"], "req_per_min": p["req_per_min"], "total_req": p["total_req"]}
+            for p in _history]
 
 @app.get("/health")
 def health():
