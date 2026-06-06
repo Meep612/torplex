@@ -16,7 +16,7 @@ BASE_CTRL_PORT    = 12800
 MAX_PROXIES       = 50
 WATCHDOG_INTERVAL = 30    # seconds between watchdog cycles
 HAPROXY_CFG       = "/etc/haproxy/haproxy.cfg"
-IP_TTL            = 120   # seconds before re-checking a known IP
+IP_TTL            = 30    # seconds before re-checking — same as watchdog interval → always fresh
 
 _last_proxy_set: set = set()
 
