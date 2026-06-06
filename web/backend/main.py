@@ -226,10 +226,12 @@ def generate_haproxy_cfg(proxy_names: list) -> str:
 defaults
     log     global
     mode    tcp
-    timeout connect 5s
+    timeout connect 10s
     timeout client  120s
     timeout server  120s
     option  tcplog
+    retries         3
+    option  redispatch
 
 frontend tor_in
     bind *:9050
@@ -237,6 +239,9 @@ frontend tor_in
 
 backend tor_pool
     balance roundrobin
+    timeout connect 10s
+    retries         2
+    option  redispatch
 {servers}
 frontend stats
     bind *:8404
