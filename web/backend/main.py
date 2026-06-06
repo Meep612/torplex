@@ -358,7 +358,9 @@ def list_countries():
 def list_proxies():
     """Returns from memory cache — instant, no Docker calls."""
     _merge_ip_into_state()
-    return sorted(_proxy_state.values(), key=lambda p: get_index(p["name"]) or 0)
+    proxies = list(_proxy_state.values())
+    proxies.sort(key=lambda p: p.get("latency_ms") if p.get("latency_ms") is not None else 99999)
+    return proxies
 
 @app.post("/proxies")
 def create_proxy(body: ProxyCreate):
