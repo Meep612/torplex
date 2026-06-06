@@ -367,6 +367,8 @@ async def startup():
     # Bootstrap state cache from running containers (non-blocking)
     loop = asyncio.get_event_loop()
     loop.run_in_executor(None, _refresh_proxy_state)
+    # Seed _stats_prev immediately so req/min is available after first watchdog cycle
+    loop.run_in_executor(None, _read_haproxy_stats)
     asyncio.create_task(watchdog())
 
 # ─── routes ───────────────────────────────────────────────────────────────────
