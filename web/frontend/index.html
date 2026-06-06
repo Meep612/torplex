@@ -126,13 +126,14 @@ input[type=number]{-moz-appearance:textfield}
         <th>Exit IP</th>
         <th>Exit Country</th>
         <th>Latency</th>
+        <th>Req/min</th>
         <th>SOCKS5</th>
         <th>HTTP</th>
         <th>Actions</th>
       </tr>
     </thead>
     <tbody id="proxy-list">
-      <tr class="loading-row"><td colspan="8">Loading…</td></tr>
+      <tr class="loading-row"><td colspan="9">Loading…</td></tr>
     </tbody>
   </table>
 </main>
@@ -229,6 +230,13 @@ let mode = 'balanced';
   document.getElementById('info-http').textContent  = h + ':8118';
 })();
 
+function renderReqMin(rpm, total){
+  if(rpm == null) return '<span class="no-data">—</span>';
+  const rpmStr = rpm === 0 ? '0' : rpm.toFixed(1);
+  const totalStr = total ? ` <span style="color:var(--muted);font-size:.72rem">(${total} tot)</span>` : '';
+  return `<span style="font-family:monospace;font-size:.82rem;font-weight:600;color:#93c5fd">${rpmStr}</span>${totalStr}`;
+}
+
 function renderLatency(ms){
   if(ms == null) return '<span class="no-data">—</span>';
   const color = ms < 2000 ? '#10b981' : ms < 5000 ? '#f59e0b' : '#ef4444';
@@ -285,7 +293,7 @@ async function loadProxies(){
   const tbody=document.getElementById('proxy-list');
 
   if(!data.length){
-    tbody.innerHTML='<tr><td colspan="8" class="empty">No proxies running — click "+ Add Proxy" to start</td></tr>';
+    tbody.innerHTML='<tr><td colspan="9" class="empty">No proxies running — click "+ Add Proxy" to start</td></tr>';
     return;
   }
 
@@ -317,6 +325,7 @@ async function loadProxies(){
         ${cfgCtry?`<span style="font-size:.7rem;color:var(--muted);margin-left:.3rem">(${cfgLabel})</span>`:''}
       </td>
       <td>${renderLatency(p.latency_ms)}</td>
+      <td>${renderReqMin(p.req_per_min, p.req_total)}</td>
       <td><span class="mono">${p.socks_port}</span></td>
       <td><span class="mono">${p.http_port}</span></td>
       <td class="actions">

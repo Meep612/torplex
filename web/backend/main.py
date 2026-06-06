@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-import subprocess, json, re, socket, time, asyncio
+import subprocess, json, re, socket, time, asyncio, csv, io
 from concurrent.futures import ThreadPoolExecutor
 import os
 
@@ -19,6 +19,8 @@ HAPROXY_CFG       = "/etc/haproxy/haproxy.cfg"
 IP_TTL            = 30    # seconds before re-checking — same as watchdog interval → always fresh
 
 _last_proxy_set: set = set()
+_haproxy_stats: dict = {}   # name → {stot, req_per_min, last_updated}
+_stats_prev: dict    = {}   # name → {stot, ts} for delta calculation
 
 COUNTRIES = {
     "any": "Any",
@@ -155,7 +157,8 @@ def spawn_one(idx, country, strict):
              "ctrl_port": ctrl_port, "country": country, "strict": strict,
              "status": "Up", "running": True,
              "exit_ip": None, "exit_country": None, "exit_country_name": None,
-             "ip_ok": False, "ip_checked_at": None}
+             "ip_ok": False, "ip_checked_at": None,
+             "latency_ms": None, "req_per_min": None, "req_total": 0}
     _proxy_state[name] = proxy
     return proxy, None
 
@@ -347,6 +350,13 @@ async def watchdog():
                 # Merge fresh IPs into state cache immediately
                 _merge_ip_into_state()
 
+            # Read HAProxy stats for req/min counters
+            stats = await loop.run_in_executor(executor, _read_haproxy_stats)
+            for name, s in stats.items():
+                if name in _proxy_state:
+                    _proxy_state[name]["req_per_min"] = s.get("req_per_min")
+                    _proxy_state[name]["req_total"]   = s.get("stot")
+
         except Exception as e:
             print(f"[watchdog] error: {e}")
 
@@ -360,6 +370,38 @@ async def startup():
     asyncio.create_task(watchdog())
 
 # ─── routes ───────────────────────────────────────────────────────────────────
+
+
+# ─── HAProxy stats ────────────────────────────────────────────────────────────
+
+def _read_haproxy_stats() -> dict:
+    """Read per-server stats from HAProxy CSV endpoint. Returns {name: {stot, req_per_min}}."""
+    global _stats_prev
+    try:
+        out, rc = run("curl -s 'http://localhost:8404/stats;csv'", timeout=5)
+        if rc != 0 or not out:
+            return {}
+        reader = csv.DictReader(io.StringIO(out.lstrip("# ")))
+        now = time.time()
+        result = {}
+        for row in reader:
+            name = row.get("svname", "").strip()
+            if not name or not name.startswith("tor-proxy-"):
+                continue
+            stot = int(row.get("stot", 0) or 0)
+            prev = _stats_prev.get(name)
+            if prev:
+                delta_t = now - prev["ts"]
+                delta_s = stot - prev["stot"]
+                req_per_min = round((delta_s / delta_t) * 60, 1) if delta_t > 0 else 0
+            else:
+                req_per_min = None
+            _stats_prev[name] = {"stot": stot, "ts": now}
+            result[name] = {"stot": stot, "req_per_min": req_per_min}
+        return result
+    except Exception as e:
+        print(f"[stats] error: {e}")
+        return {}
 
 @app.get("/health")
 def health():
@@ -375,7 +417,9 @@ def list_countries():
 def list_proxies():
     """Returns from memory cache — instant, no Docker calls."""
     _merge_ip_into_state()
-    return sorted(_proxy_state.values(), key=lambda p: get_index(p["name"]) or 0)
+    proxies = list(_proxy_state.values())
+    proxies.sort(key=lambda p: p.get("latency_ms") if p.get("latency_ms") is not None else 99999)
+    return proxies
 
 @app.post("/proxies")
 def create_proxy(body: ProxyCreate):
