@@ -82,13 +82,17 @@ def reserve_indexes(count):
 
 def fetch_ip(socks_port: int) -> dict:
     try:
-        # Step 1: get the exit IP via api.ipify.org (same URL as manual test)
+        # Step 1: get the exit IP via api.ipify.org + measure response time
+        t0 = time.time()
         ip_out, rc = run(
             f'curl -s --socks5-hostname 127.0.0.1:{socks_port} --max-time 12 https://api.ipify.org',
             timeout=20
         )
+        latency_ms = int((time.time() - t0) * 1000)
+
         if rc != 0 or not ip_out or not ip_out.strip():
-            return {"ip": None, "country": None, "country_name": None, "city": None, "ok": False}
+            return {"ip": None, "country": None, "country_name": None, "city": None,
+                    "ok": False, "latency_ms": None}
         ip = ip_out.strip()
 
         # Step 2: geolocate that IP (direct, no proxy needed — it's public info)
@@ -102,17 +106,21 @@ def fetch_ip(socks_port: int) -> dict:
                 city         = g.get("city")
             except Exception:
                 pass
-        return {"ip": ip, "country": country, "country_name": country_name, "city": city, "ok": True}
+        return {"ip": ip, "country": country, "country_name": country_name, "city": city,
+                "ok": True, "latency_ms": latency_ms}
     except Exception:
         pass
-    return {"ip": None, "country": None, "country_name": None, "city": None, "ok": False}
+    return {"ip": None, "country": None, "country_name": None, "city": None,
+            "ok": False, "latency_ms": None}
 
 def refresh_ip(name: str, socks_port: int):
     result = fetch_ip(socks_port)
     result["checked_at"] = time.time()
     _ip_cache[name] = result
-    status = f"{result['ip']} ({result['country']})" if result["ok"] else "no route yet"
-    print(f"[watchdog] {name}: {status}")
+    if result["ok"]:
+        print(f"[watchdog] {name}: {result['ip']} ({result['country']}) {result['latency_ms']}ms")
+    else:
+        print(f"[watchdog] {name}: no route yet")
 
 def tor_control(ctrl_port, signal):
     try:
@@ -211,6 +219,7 @@ def _merge_ip_into_state():
         proxy["exit_country_name"] = ip_data.get("country_name")
         proxy["ip_ok"]             = ip_data.get("ok", False)
         proxy["ip_checked_at"]     = ip_data.get("checked_at")
+        proxy["latency_ms"]        = ip_data.get("latency_ms")
 
 # ─── HAProxy ──────────────────────────────────────────────────────────────────
 

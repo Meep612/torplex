@@ -125,13 +125,14 @@ input[type=number]{-moz-appearance:textfield}
         <th>Status</th>
         <th>Exit IP</th>
         <th>Exit Country</th>
+        <th>Latency</th>
         <th>SOCKS5</th>
         <th>HTTP</th>
         <th>Actions</th>
       </tr>
     </thead>
     <tbody id="proxy-list">
-      <tr class="loading-row"><td colspan="7">Loading…</td></tr>
+      <tr class="loading-row"><td colspan="8">Loading…</td></tr>
     </tbody>
   </table>
 </main>
@@ -228,6 +229,13 @@ let mode = 'balanced';
   document.getElementById('info-http').textContent  = h + ':8118';
 })();
 
+function renderLatency(ms){
+  if(ms == null) return '<span class="no-data">—</span>';
+  const color = ms < 2000 ? '#10b981' : ms < 5000 ? '#f59e0b' : '#ef4444';
+  const label = ms < 1000 ? ms+'ms' : (ms/1000).toFixed(1)+'s';
+  return `<span style="font-family:monospace;font-size:.82rem;font-weight:600;color:${color}">${label}</span>`;
+}
+
 function flag(code){
   if(!code||code==='any') return '🌍';
   return code.toUpperCase().replace(/./g,c=>String.fromCodePoint(127397+c.charCodeAt(0)));
@@ -277,7 +285,7 @@ async function loadProxies(){
   const tbody=document.getElementById('proxy-list');
 
   if(!data.length){
-    tbody.innerHTML='<tr><td colspan="7" class="empty">No proxies running — click "+ Add Proxy" to start</td></tr>';
+    tbody.innerHTML='<tr><td colspan="8" class="empty">No proxies running — click "+ Add Proxy" to start</td></tr>';
     return;
   }
 
@@ -308,6 +316,7 @@ async function loadProxies(){
         ${p.strict?'<span class="strict-tag">STRICT</span>':''}
         ${cfgCtry?`<span style="font-size:.7rem;color:var(--muted);margin-left:.3rem">(${cfgLabel})</span>`:''}
       </td>
+      <td>${renderLatency(p.latency_ms)}</td>
       <td><span class="mono">${p.socks_port}</span></td>
       <td><span class="mono">${p.http_port}</span></td>
       <td class="actions">
