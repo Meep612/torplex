@@ -223,12 +223,24 @@ def _merge_ip_into_state():
 
 # ─── HAProxy ──────────────────────────────────────────────────────────────────
 
-def generate_haproxy_cfg(proxy_names: list) -> str:
+def generate_haproxy_cfg(proxies: list) -> str:
+    """proxies: list of proxy dicts with name + optional latency_ms."""
     servers = ""
-    for name in sorted(proxy_names):
-        idx = get_index(name)
-        if idx:
-            servers += f"    server {name} 127.0.0.1:{BASE_SOCKS_PORT + idx}\n"
+    if proxies:
+        # Weighted round-robin: weight inversely proportional to latency
+        # Proxies without latency get weight 1 (least preferred)
+        latencies = [p.get("latency_ms") or 0 for p in proxies]
+        max_lat   = max(latencies) if any(latencies) else 1
+
+        for p in sorted(proxies, key=lambda x: x.get("latency_ms") or 99999):
+            idx = get_index(p["name"])
+            if not idx:
+                continue
+            lat = p.get("latency_ms") or max_lat
+            # Scale weight 1–10 inversely proportional to latency
+            weight = max(1, min(10, round((max_lat / lat) * 10)))
+            servers += f"    server {p['name']} 127.0.0.1:{BASE_SOCKS_PORT + idx} weight {weight}\n"
+
     return f"""global
     log stdout format raw local0
     maxconn 50000
@@ -261,13 +273,14 @@ frontend stats
     stats admin if TRUE
 """
 
-def reload_haproxy(proxy_names: list) -> bool:
+def reload_haproxy(proxies: list) -> bool:
     global _last_proxy_set
-    current_set = set(proxy_names)
+    # Track both proxy set AND their latency weights to detect changes
+    current_set = {p["name"]: (p.get("latency_ms") or 0) for p in proxies}
     if current_set == _last_proxy_set:
         return False
 
-    cfg = generate_haproxy_cfg(proxy_names)
+    cfg = generate_haproxy_cfg(proxies)
     try:
         with open(HAPROXY_CFG, "w") as f:
             f.write(cfg)
@@ -275,7 +288,6 @@ def reload_haproxy(proxy_names: list) -> bool:
         if rc != 0:
             print("[haproxy] config validation failed")
             return False
-        # USR2 = graceful reload (works with systemd Type=simple + -db flag)
         pid_out, _ = run("systemctl show -p MainPID --value torplex-haproxy")
         pid = pid_out.strip()
         if pid and pid != "0":
@@ -284,7 +296,8 @@ def reload_haproxy(proxy_names: list) -> bool:
             _, rc = run("systemctl restart torplex-haproxy")
         if rc == 0:
             _last_proxy_set = current_set
-            print(f"[haproxy] reloaded — {len(proxy_names)} backends: {', '.join(sorted(proxy_names))}")
+            names = sorted(p["name"] for p in proxies)
+            print(f"[haproxy] reloaded — {len(proxies)} backends (weighted): {', '.join(names)}")
             return True
         print("[haproxy] reload failed")
         return False
@@ -306,7 +319,12 @@ async def watchdog():
             proxies = await loop.run_in_executor(executor, _refresh_proxy_state)
 
             # HAProxy: only include proxies confirmed working by watchdog
-            ready = [p["name"] for p in proxies if p.get("running") and _ip_cache.get(p["name"], {}).get("ok")]
+            # Pass full dicts so reload_haproxy can compute latency weights
+            ready = [
+                {**p, "latency_ms": _ip_cache.get(p["name"], {}).get("latency_ms")}
+                for p in proxies
+                if p.get("running") and _ip_cache.get(p["name"], {}).get("ok")
+            ]
             await loop.run_in_executor(executor, reload_haproxy, ready)
 
             # IP refresh for stale/missing entries
@@ -358,9 +376,7 @@ def list_countries():
 def list_proxies():
     """Returns from memory cache — instant, no Docker calls."""
     _merge_ip_into_state()
-    proxies = list(_proxy_state.values())
-    proxies.sort(key=lambda p: p.get("latency_ms") if p.get("latency_ms") is not None else 99999)
-    return proxies
+    return sorted(_proxy_state.values(), key=lambda p: get_index(p["name"]) or 0)
 
 @app.post("/proxies")
 def create_proxy(body: ProxyCreate):
