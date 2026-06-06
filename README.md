@@ -25,7 +25,7 @@ Torplex lets you spin up multiple isolated Tor SOCKS5/HTTP proxies, each in its 
 
 ```bash
 # Clone and install everything
-git clone https://github.com/Meep612/torplex.git /opt/torplex
+git clone https://github.com/YOUR_USER/torplex.git /opt/torplex
 bash /opt/torplex/scripts/install.sh
 ```
 
@@ -117,7 +117,6 @@ torplex/
 └── README.md
 ```
 
-## Rollback (Proxmox lab)
+## Reinstall from scratch
 
-The VM snapshot `base-rocky98-updated` is a clean Rocky 9.8 base before any install.
-To test a fresh install: rollback the VM and re-run `install.sh`.
+To test a clean install, wipe `/opt/torplex` and re-run `install.sh`.

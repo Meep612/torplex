@@ -2,7 +2,7 @@
 set -euo pipefail
 
 TORPLEX_DIR="/opt/torplex"
-REPO_URL="https://github.com/Meep612/torplex.git"
+REPO_URL="https://github.com/YOUR_USER/torplex.git"  # ← set your repo URL
 LOG_FILE="/var/log/torplex-install.log"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"; }
